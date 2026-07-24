@@ -12,6 +12,10 @@
   --c-onbrand: #FFFFFF;
   --c-lime: #CBFF3C;
   --c-onlime: #1E2A00;
+  --c-green: #00BE82;
+  --c-green-soft: #DCF6EC;
+  --c-coral: #FF6A4D;
+  --c-coral-soft: #FFEAE4;
   --c-danger: #FF4A2B;
   color-scheme: light;
 }
@@ -28,6 +32,10 @@
   --c-onbrand: #FFFFFF;
   --c-lime: #CBFF3C;
   --c-onlime: #1E2A00;
+  --c-green: #2CD9A0;
+  --c-green-soft: #10281F;
+  --c-coral: #FF8468;
+  --c-coral-soft: #2C1710;
   --c-danger: #FF6647;
   color-scheme: dark;
 }
@@ -44,6 +52,10 @@
   --color-onbrand: var(--c-onbrand);
   --color-lime: var(--c-lime);
   --color-onlime: var(--c-onlime);
+  --color-green: var(--c-green);
+  --color-greensoft: var(--c-green-soft);
+  --color-coral: var(--c-coral);
+  --color-coralsoft: var(--c-coral-soft);
   --color-danger: var(--c-danger);
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
