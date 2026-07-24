@@ -4,10 +4,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
-  exerciseName, usesWeight, alternatives, formatClock, estimateCalories, personalBests,
+  exercise, exerciseName, usesWeight, alternatives, formatClock, estimateCalories, personalBests,
 } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
-import { TopBar, Button, Field, Stepper, Sheet, Empty } from '../components/ui'
+import { TopBar, Button, Field, Stepper, Sheet, Empty, MuscleTiles } from '../components/ui'
 import type { SessionEntry } from '../lib/types'
 
 export default function SessionRun() {
@@ -114,7 +114,7 @@ export default function SessionRun() {
                   <div className="flex items-start gap-3">
                     <button onClick={() => toggle(e)} aria-label={e.done ? 'Mark not done' : 'Mark done'}
                       className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-[14px] ${
-                        e.done ? 'border-brand bg-brand text-onbrand' : 'border-line text-transparent'}`}>
+                        e.done ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>
                       ✓
                     </button>
                     <button className="min-w-0 flex-1 text-left" onClick={() => setEditing(e)}>
@@ -130,6 +130,11 @@ export default function SessionRun() {
                         {e.sets} × {e.reps}
                         {e.weight_kg != null && ` · ${e.weight_kg} kg`}
                       </p>
+                      <MuscleTiles
+                        primary={exercise(e.exercise_id)?.primaryMuscles ?? []}
+                        secondary={exercise(e.exercise_id)?.secondaryMuscles ?? []}
+                        max={3}
+                      />
                     </button>
                     <div className="flex shrink-0 flex-col gap-1">
                       <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"
@@ -252,9 +257,7 @@ function SwapSheet({ entry, onClose, onSwap }: {
           <button key={o.id} onClick={() => onSwap(entry, o.id)}
             className="w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-left active:scale-[.99]">
             <div className="text-[15px] font-medium">{o.name}</div>
-            <div className="mt-0.5 text-[12.5px] capitalize text-muted">
-              {o.primaryMuscles.join(', ')}
-            </div>
+            <MuscleTiles primary={o.primaryMuscles} secondary={o.secondaryMuscles} max={3} />
           </button>
         ))}
         {options.length === 0 && (
