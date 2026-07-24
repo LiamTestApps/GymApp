@@ -70,12 +70,12 @@ export default function ExerciseDetail() {
 
         <div className="mt-5 flex flex-wrap gap-1.5">
           {item.primaryMuscles.map((m) => (
-            <span key={m} className="rounded-full bg-brandsoft px-2.5 py-1 text-[12px] capitalize text-brand">
+            <span key={m} className="rounded-full bg-greensoft px-2.5 py-1 text-[12px] font-medium capitalize text-green">
               {m}
             </span>
           ))}
-          {item.secondaryMuscles.map((m) => (
-            <span key={m} className="rounded-full border border-line px-2.5 py-1 text-[12px] capitalize text-muted">
+          {item.secondaryMuscles.filter((m) => !item.primaryMuscles.includes(m)).map((m) => (
+            <span key={m} className="rounded-full bg-coralsoft px-2.5 py-1 text-[12px] font-medium capitalize text-coral">
               {m}
             </span>
           ))}
