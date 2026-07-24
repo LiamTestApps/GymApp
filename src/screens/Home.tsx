@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, put, uid, now } from '../lib/db'
+import { useState } from 'react'
+import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import { currentStreak, exerciseName } from '../lib/fitness'
 import { Screen, Title, Card, Button, Empty } from '../components/ui'
@@ -79,8 +80,12 @@ export default function Home() {
             {done.length === 0
               ? 'No sessions logged yet.'
               : `${done.length} session${done.length === 1 ? '' : 's'} logged`}
-            {streak > 0 && ` · ${streak} day streak`}
-          </p>
+            </p>
+          {streak > 0 && (
+            <p className="mt-1.5 inline-block rounded-md bg-coralsoft px-2 py-0.5 text-[13px] font-medium text-coral">
+              {streak} day streak
+            </p>
+          )}
         </div>
         <button onClick={() => nav('/settings')} aria-label="Open settings"
           className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-[16px] font-bold"
@@ -149,7 +154,7 @@ export default function Home() {
           <div className="space-y-2">
             {done
               .sort((a, b) => b.started_at.localeCompare(a.started_at))
-              .slice(0, 5)
+              .slice(0, 8)
               .map((s) => <RecentRow key={s.id} session={s} />)}
           </div>
         </>
@@ -159,30 +164,66 @@ export default function Home() {
 }
 
 function RecentRow({ session }: { session: Session }) {
+  const [confirming, setConfirming] = useState(false)
+
   const entries = useLiveQuery(
     async () => (await db.session_entries.where('session_id').equals(session.id).toArray())
       .filter((e) => !e.deleted && e.done),
     [session.id], [],
   )
   const mins = session.duration_s ? Math.round(session.duration_s / 60) : 0
-  return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="truncate text-[15px] font-medium">{session.name}</p>
-        <p className="shrink-0 text-[12.5px] text-muted">
-          {new Date(session.started_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+
+  async function remove() {
+    const all = await db.session_entries.where('session_id').equals(session.id).toArray()
+    for (const e of all) await softDelete('session_entries', e.id)
+    await softDelete('sessions', session.id)
+  }
+
+  if (confirming) {
+    return (
+      <div className="rounded-xl border border-danger bg-surface px-4 py-3">
+        <p className="text-[14px] font-medium">Delete this session?</p>
+        <p className="mt-0.5 text-[12.5px] text-muted">
+          It goes from both phones. Your routine and its weights are untouched.
         </p>
+        <div className="mt-3 flex gap-2">
+          <button onClick={remove}
+            className="flex-1 rounded-lg bg-danger px-3 py-2 text-[13px] font-medium text-white">
+            Delete
+          </button>
+          <button onClick={() => setConfirming(false)}
+            className="flex-1 rounded-lg border border-line px-3 py-2 text-[13px] text-muted">
+            Keep it
+          </button>
+        </div>
       </div>
-      <p className="mt-0.5 truncate text-[12.5px] text-muted">
-        {mins} min · {entries.length} exercises
-        {session.calories ? ` · ~${session.calories} kcal` : ''}
-      </p>
-      {entries.length > 0 && (
-        <p className="mt-1 truncate text-[12px] text-muted">
-          {entries.slice(0, 3).map((e) => exerciseName(e.exercise_id)).join(', ')}
-          {entries.length > 3 ? '…' : ''}
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="truncate text-[15px] font-medium">{session.name}</p>
+          <p className="shrink-0 text-[12.5px] text-muted">
+            {new Date(session.started_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+          </p>
+        </div>
+        <p className="mt-0.5 truncate text-[12.5px] text-muted">
+          {mins} min · {entries.length} exercises
+          {session.calories ? ` · ~${session.calories} kcal` : ''}
         </p>
-      )}
+        {entries.length > 0 && (
+          <p className="mt-1 truncate text-[12px] text-muted">
+            {entries.slice(0, 3).map((e) => exerciseName(e.exercise_id)).join(', ')}
+            {entries.length > 3 ? '…' : ''}
+          </p>
+        )}
+      </div>
+      <button onClick={() => setConfirming(true)} aria-label={`Delete ${session.name}`}
+        className="-mr-1 shrink-0 rounded-lg px-2 py-1 text-[16px] leading-none text-muted active:bg-raised">
+        ×
+      </button>
     </div>
   )
 }
