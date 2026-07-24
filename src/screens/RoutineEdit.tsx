@@ -3,9 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
-import { exerciseName, usesWeight } from '../lib/fitness'
+import { exercise, exerciseName, usesWeight } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
-import { TopBar, Button, Card, Field, inputClass, Empty, Stepper, Sheet } from '../components/ui'
+import {
+  TopBar, Button, Card, Field, inputClass, Empty, Stepper, Sheet, BodyMap, MuscleTiles,
+} from '../components/ui'
 import type { GoalKey, RoutineExercise } from '../lib/types'
 
 export default function RoutineEdit() {
@@ -36,6 +38,17 @@ export default function RoutineEdit() {
   )
 
   const preset = goals.find((g) => g.id === goal)
+
+  const coverage = (() => {
+    const primary = new Set<string>()
+    const secondary = new Set<string>()
+    for (const e of exercises) {
+      const c = exercise(e.exercise_id)
+      c?.primaryMuscles.forEach((m) => primary.add(m))
+      c?.secondaryMuscles.forEach((m) => secondary.add(m))
+    }
+    return { primary, secondary }
+  })()
 
   async function ensureRoutine(): Promise<string> {
     if (routineId) {
@@ -117,6 +130,13 @@ export default function RoutineEdit() {
           </p>
         </div>
 
+        {exercises.length > 0 && (
+          <div>
+            <span className="mb-1.5 block text-[13px] font-medium text-muted">What this works</span>
+            <BodyMap primary={coverage.primary} secondary={coverage.secondary} />
+          </div>
+        )}
+
         <div>
           <div className="mb-2.5 flex items-center justify-between">
             <span className="text-[13px] font-medium text-muted">Exercises</span>
@@ -139,6 +159,10 @@ export default function RoutineEdit() {
                         {e.sets} × {e.reps}
                         {e.weight_kg != null && ` · ${e.weight_kg} kg`}
                       </p>
+                      <MuscleTiles
+                        primary={exercise(e.exercise_id)?.primaryMuscles ?? []}
+                        secondary={exercise(e.exercise_id)?.secondaryMuscles ?? []}
+                      />
                     </div>
                     <div className="flex shrink-0 flex-col gap-1">
                       <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"
