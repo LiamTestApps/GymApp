@@ -1,0 +1,26 @@
+name: Supabase keep-alive
+
+# Supabase pauses free-tier projects after 7 days with no activity.
+# This pokes the database every 3 days so that never happens.
+
+on:
+  schedule:
+    - cron: '0 6 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query the profiles table
+        run: |
+          code=$(curl -s -o /tmp/out.txt -w "%{http_code}" \
+            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}")
+          echo "HTTP $code"
+          cat /tmp/out.txt
+          if [ "$code" != "200" ]; then
+            echo "Keep-alive failed — check the repository secrets."
+            exit 1
+          fi
