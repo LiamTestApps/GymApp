@@ -30,8 +30,8 @@ export default function SessionDone() {
   return (
     <Screen>
       <div className="pt-6">
-        <div className="mb-1 inline-block rounded-full bg-lime px-3 py-1 text-[12px] font-semibold uppercase tracking-wide text-onlime">
-          Session logged
+        <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-green px-3 py-1 text-[12px] font-semibold uppercase tracking-wide text-white">
+          <span className="text-[13px]">✓</span> Session logged
         </div>
         <h1 className="mt-3 font-display text-[30px] font-bold leading-tight tracking-tight">
           {session.name}
@@ -46,8 +46,8 @@ export default function SessionDone() {
       <div className="mt-6 grid grid-cols-2 gap-2.5">
         <Stat label="Duration" value={formatClock(session.duration_s ?? 0)} />
         <Stat label="Exercises" value={String(done.length)} />
-        <Stat label="Total lifted" value={volume > 0 ? `${Math.round(volume).toLocaleString()} kg` : '—'} />
-        <Stat label="Calories" value={session.calories ? `~${session.calories}` : '—'} />
+        <Stat label="Total lifted" value={volume > 0 ? `${Math.round(volume).toLocaleString()} kg` : '—'} accent="green" />
+        <Stat label="Calories" value={session.calories ? `~${session.calories}` : '—'} accent="coral" />
       </div>
 
       {!session.calories && (
@@ -57,8 +57,8 @@ export default function SessionDone() {
       )}
 
       {streak > 1 && (
-        <div className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3.5">
-          <p className="font-display text-[16px] font-medium">{streak} days in a row</p>
+        <div className="mt-4 rounded-2xl border border-coral bg-coralsoft px-4 py-3.5">
+          <p className="font-display text-[16px] font-medium text-coral">{streak} days in a row</p>
           <p className="mt-0.5 text-[13px] text-muted">Keep it going.</p>
         </div>
       )}
@@ -87,11 +87,14 @@ export default function SessionDone() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, accent }: {
+  label: string; value: string; accent?: 'green' | 'coral'
+}) {
+  const tone = accent === 'green' ? 'text-green' : accent === 'coral' ? 'text-coral' : ''
   return (
     <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
       <p className="text-[12.5px] text-muted">{label}</p>
-      <p className="tabnum mt-1 font-display text-[22px] font-bold">{value}</p>
+      <p className={`tabnum mt-1 font-display text-[22px] font-bold ${tone}`}>{value}</p>
     </div>
   )
 }
