@@ -75,7 +75,7 @@ export default function ExerciseDetail() {
             </span>
           ))}
           {item.secondaryMuscles.filter((m) => !item.primaryMuscles.includes(m)).map((m) => (
-            <span key={m} className="rounded-full bg-coralsoft px-2.5 py-1 text-[12px] font-medium capitalize text-coral">
+            <span key={m} className="rounded-full bg-bluesoft px-2.5 py-1 text-[12px] font-medium capitalize text-blue">
               {m}
             </span>
           ))}
