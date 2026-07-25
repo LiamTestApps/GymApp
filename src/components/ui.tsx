@@ -9,6 +9,7 @@ export function Screen({ children, pad = true }: { children: ReactNode; pad?: bo
   )
 }
 
+
 export function Title({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="mb-5">
