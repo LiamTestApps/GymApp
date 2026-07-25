@@ -16,6 +16,9 @@
   --c-green-soft: #DCF6EC;
   --c-coral: #FF6A4D;
   --c-coral-soft: #FFEAE4;
+  --c-blue: #2F80FF;
+  --c-blue-soft: #E4EEFF;
+  --c-body-base: #E4E7EB;
   --c-danger: #FF4A2B;
   color-scheme: light;
 }
@@ -36,6 +39,9 @@
   --c-green-soft: #10281F;
   --c-coral: #FF8468;
   --c-coral-soft: #2C1710;
+  --c-blue: #5B9CFF;
+  --c-blue-soft: #14203A;
+  --c-body-base: #2A2F37;
   --c-danger: #FF6647;
   color-scheme: dark;
 }
@@ -56,6 +62,8 @@
   --color-greensoft: var(--c-green-soft);
   --color-coral: var(--c-coral);
   --color-coralsoft: var(--c-coral-soft);
+  --color-blue: var(--c-blue);
+  --color-bluesoft: var(--c-blue-soft);
   --color-danger: var(--c-danger);
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -87,6 +95,13 @@ input[type="number"] { -moz-appearance: textfield; }
 
 @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .rise { animation: riseIn .22s ease-out both; }
+
+.hero-gradient {
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--c-green) 55%, transparent) 0%, transparent 55%),
+    radial-gradient(130% 130% at 100% 20%, color-mix(in srgb, var(--c-blue) 60%, transparent) 0%, transparent 60%),
+    linear-gradient(135deg, var(--c-brand) 0%, color-mix(in srgb, var(--c-brand) 70%, #000) 100%);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .rise { animation: none; }
