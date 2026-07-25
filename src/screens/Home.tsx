@@ -5,7 +5,14 @@ import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import { currentStreak, exerciseName } from '../lib/fitness'
 import { Screen, Title, Card, Button, Empty } from '../components/ui'
-import type { Session } from '../lib/types'
+import type { Session, GoalKey } from '../lib/types'
+
+const GOAL_LABEL: Record<GoalKey, string> = {
+  strength: 'Strength',
+  muscle: 'Build muscle',
+  endurance: 'Endurance',
+  fitness: 'General fitness',
+}
 
 export default function Home() {
   const nav = useNavigate()
