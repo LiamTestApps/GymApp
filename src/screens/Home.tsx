@@ -143,23 +143,28 @@ export default function Home() {
       ) : (
         <div className="space-y-2.5">
           {routines.map((r) => (
-            <Card key={r.id}>
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-[18px] font-bold">{r.name}</p>
-                  <p className="mt-0.5 text-[13px] text-muted">
-                    {counts.get(r.id) ?? 0} exercises
-                  </p>
+            <div key={r.id} className="overflow-hidden rounded-2xl border border-line bg-surface">
+              <div className="flex">
+                <div className="w-1.5 shrink-0 bg-gradient-to-b from-green to-blue" />
+                <div className="min-w-0 flex-1 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-display text-[18px] font-bold">{r.name}</p>
+                      <p className="mt-0.5 text-[13px] text-muted">
+                        {counts.get(r.id) ?? 0} exercises · {GOAL_LABEL[r.goal] ?? r.goal}
+                      </p>
+                    </div>
+                    <button onClick={() => nav(`/routine/${r.id}`)}
+                      className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-[13px] text-muted">
+                      Edit
+                    </button>
+                  </div>
+                  <div className="mt-3">
+                    <Button variant="green" onClick={() => startRoutine(r.id, r.name)}>Start</Button>
+                  </div>
                 </div>
-                <button onClick={() => nav(`/routine/${r.id}`)}
-                  className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-[13px] text-muted">
-                  Edit
-                </button>
               </div>
-              <div className="mt-3">
-                <Button onClick={() => startRoutine(r.id, r.name)}>Start</Button>
-              </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
@@ -179,6 +184,7 @@ export default function Home() {
           </div>
         </>
       )}
+      </div>
     </Screen>
   )
 }
@@ -222,6 +228,9 @@ function RecentRow({ session }: { session: Session }) {
 
   return (
     <div className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-greensoft text-[12px] font-bold text-green">
+        ✓
+      </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
           <p className="truncate text-[15px] font-medium">{session.name}</p>
