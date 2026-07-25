@@ -77,30 +77,43 @@ export default function Home() {
   }
 
   return (
-    <Screen>
-      <div className="mb-5 flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight">
-            {greeting()}, {profile?.name}
-          </h1>
-          <p className="mt-1 text-[15px] text-muted">
-            {done.length === 0
-              ? 'No sessions logged yet.'
-              : `${done.length} session${done.length === 1 ? '' : 's'} logged`}
-            </p>
-          {streak > 0 && (
-            <p className="mt-1.5 inline-block rounded-md bg-coralsoft px-2 py-0.5 text-[13px] font-medium text-coral">
-              {streak} day streak
-            </p>
-          )}
+    <Screen pad={false}>
+      <div className="hero-gradient px-5 pb-6 pt-6 text-white">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[14px] font-medium text-white/70">{greeting()}</p>
+            <h1 className="font-display text-[30px] font-bold leading-tight tracking-tight">
+              {profile?.name}
+            </h1>
+          </div>
+          <button onClick={() => nav('/settings')} aria-label="Open settings"
+            className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-[16px] font-bold ring-2 ring-white/30"
+            style={{ background: profile?.colour, color: profile?.colour === '#CBFF3C' ? '#1E2A00' : '#fff' }}>
+            {profile?.name[0]}
+          </button>
         </div>
-        <button onClick={() => nav('/settings')} aria-label="Open settings"
-          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-[16px] font-bold"
-          style={{ background: profile?.colour, color: profile?.colour === '#CBFF3C' ? '#1E2A00' : '#fff' }}>
-          {profile?.name[0]}
-        </button>
+
+        <div className="mt-5 flex gap-2.5">
+          <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
+            <p className="tabnum font-display text-[24px] font-bold leading-none">{done.length}</p>
+            <p className="mt-1 text-[12px] text-white/70">
+              session{done.length === 1 ? '' : 's'}
+            </p>
+          </div>
+          <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
+            <p className="tabnum font-display text-[24px] font-bold leading-none">{streak}</p>
+            <p className="mt-1 text-[12px] text-white/70">day streak</p>
+          </div>
+          <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
+            <p className="tabnum font-display text-[24px] font-bold leading-none">{routines.length}</p>
+            <p className="mt-1 text-[12px] text-white/70">
+              routine{routines.length === 1 ? '' : 's'}
+            </p>
+          </div>
+        </div>
       </div>
 
+      <div className="px-5 pt-5">
       {open && (
         <Card className="mb-4 !border-brand">
           <p className="text-[13px] font-medium text-brand">Session in progress</p>
