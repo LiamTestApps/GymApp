@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Profile, Routine, RoutineExercise, Session, SessionEntry,
-  GoalPreset, Outbox, TableName,
+  GoalPreset, Goal, Outbox, TableName,
 } from './types'
 
 export class GymDB extends Dexie {
@@ -11,6 +11,7 @@ export class GymDB extends Dexie {
   sessions!: Table<Session, string>
   session_entries!: Table<SessionEntry, string>
   goal_presets!: Table<GoalPreset, string>
+  goals!: Table<Goal, string>
   outbox!: Table<Outbox, number>
   meta!: Table<{ key: string; value: string }, string>
 
@@ -25,6 +26,9 @@ export class GymDB extends Dexie {
       goal_presets: 'id, updated_at',
       outbox: '++key, table, row_id',
       meta: 'key',
+    })
+    this.version(2).stores({
+      goals: 'id, user_id, updated_at',
     })
   }
 }

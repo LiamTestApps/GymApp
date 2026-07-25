@@ -3,7 +3,7 @@ import { supabase, supabaseConfigured } from './supabase'
 import type { TableName, GoalPreset, Profile } from './types'
 
 const TABLES: TableName[] = [
-  'profiles', 'goal_presets', 'routines', 'routine_exercises', 'sessions', 'session_entries',
+  'profiles', 'goal_presets', 'goals', 'routines', 'routine_exercises', 'sessions', 'session_entries',
 ]
 
 export type SyncState = 'idle' | 'syncing' | 'offline' | 'error'

@@ -91,6 +91,50 @@ export function formatClock(seconds: number): string {
 }
 
 /** Consecutive days (counting back from today or yesterday) with a finished session. */
+
+/** Monday-based week key, e.g. "2026-W30", used to group sessions by week. */
+export function weekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  const dayNum = (date.getUTCDay() + 6) % 7 // Mon=0 … Sun=6
+  date.setUTCDate(date.getUTCDate() - dayNum + 3) // nearest Thursday
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
+  const week =
+    1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7)
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+/** Monday 00:00 of the week containing d. */
+export function weekStart(d: Date): Date {
+  const date = new Date(d)
+  const dayNum = (date.getDay() + 6) % 7
+  date.setDate(date.getDate() - dayNum)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+/** Consecutive weeks (counting back from this week) with at least one session. */
+export function currentWeekStreak(sessions: Session[]): number {
+  const weeks = new Set(
+    sessions
+      .filter((s) => s.ended_at && !s.deleted)
+      .map((s) => weekKey(weekStart(new Date(s.started_at)))),
+  )
+  if (!weeks.size) return 0
+
+  const cursor = weekStart(new Date())
+  if (!weeks.has(weekKey(cursor))) {
+    cursor.setDate(cursor.getDate() - 7)
+    if (!weeks.has(weekKey(cursor))) return 0
+  }
+
+  let streak = 0
+  while (weeks.has(weekKey(cursor))) {
+    streak += 1
+    cursor.setDate(cursor.getDate() - 7)
+  }
+  return streak
+}
+
 export function currentStreak(sessions: Session[]): number {
   const days = new Set(
     sessions
@@ -122,4 +166,224 @@ export function personalBests(entries: SessionEntry[]): Map<string, number> {
     if (prev == null || e.weight_kg > prev) best.set(e.exercise_id, e.weight_kg)
   }
   return best
+}
+
+// ---------------------------------------------------------------------------
+// v2 analytics helpers
+// ---------------------------------------------------------------------------
+
+export interface WeightPoint { date: string; weight: number }
+
+/** Actual logged working weight per session for one exercise, oldest first. */
+export function weightHistory(
+  sessions: Session[],
+  entries: SessionEntry[],
+  exerciseId: string,
+): WeightPoint[] {
+  const sessionDate = new Map(sessions.map((s) => [s.id, s.started_at]))
+  const points: WeightPoint[] = []
+  for (const e of entries) {
+    if (e.deleted || !e.done || e.exercise_id !== exerciseId || e.weight_kg == null) continue
+    const started = sessionDate.get(e.session_id)
+    if (!started) continue
+    points.push({ date: started, weight: e.weight_kg })
+  }
+  return points.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** How many finished sessions included each exercise — for the "most trained" pick. */
+export function exerciseFrequency(sessions: Session[], entries: SessionEntry[]): Map<string, number> {
+  const done = new Set(sessions.filter((s) => s.ended_at && !s.deleted).map((s) => s.id))
+  const freq = new Map<string, number>()
+  for (const e of entries) {
+    if (e.deleted || !e.done || !done.has(e.session_id)) continue
+    freq.set(e.exercise_id, (freq.get(e.exercise_id) ?? 0) + 1)
+  }
+  return freq
+}
+
+/** Total sets logged per muscle group (primary weighted 2x, secondary 1x). */
+export function muscleFrequency(
+  sessions: Session[],
+  entries: SessionEntry[],
+): Map<string, number> {
+  const done = new Set(sessions.filter((s) => s.ended_at && !s.deleted).map((s) => s.id))
+  const freq = new Map<string, number>()
+  for (const e of entries) {
+    if (e.deleted || !e.done || !done.has(e.session_id)) continue
+    const c = exercise(e.exercise_id)
+    if (!c) continue
+    for (const m of c.primaryMuscles) freq.set(m, (freq.get(m) ?? 0) + e.sets * 2)
+    for (const m of c.secondaryMuscles) freq.set(m, (freq.get(m) ?? 0) + e.sets)
+  }
+  return freq
+}
+
+export const ALL_MUSCLES = [
+  'chest', 'lats', 'middle back', 'lower back', 'traps', 'shoulders',
+  'biceps', 'triceps', 'forearms', 'abdominals',
+  'quadriceps', 'hamstrings', 'glutes', 'calves', 'abductors', 'adductors',
+]
+
+export type Timescale = 'week' | 'month' | 'year'
+
+export interface TimeBucket { label: string; minutes: number; key: string }
+
+/** Workout minutes bucketed by week / month / year, most recent last. */
+export function timeBuckets(sessions: Session[], scale: Timescale, count: number): TimeBucket[] {
+  const done = sessions.filter((s) => s.ended_at && !s.deleted && s.duration_s)
+  const now = new Date()
+  const buckets: TimeBucket[] = []
+
+  for (let i = count - 1; i >= 0; i--) {
+    let start: Date, end: Date, label: string, key: string
+    if (scale === 'week') {
+      start = weekStart(now); start.setDate(start.getDate() - i * 7)
+      end = new Date(start); end.setDate(end.getDate() + 7)
+      label = start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+      key = weekKey(start)
+    } else if (scale === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
+      label = start.toLocaleDateString(undefined, { month: 'short' })
+      key = `${start.getFullYear()}-${start.getMonth()}`
+    } else {
+      start = new Date(now.getFullYear() - i, 0, 1)
+      end = new Date(now.getFullYear() - i + 1, 0, 1)
+      label = String(start.getFullYear())
+      key = String(start.getFullYear())
+    }
+    const minutes = done
+      .filter((s) => { const t = new Date(s.started_at); return t >= start && t < end })
+      .reduce((sum, s) => sum + Math.round((s.duration_s ?? 0) / 60), 0)
+    buckets.push({ label, minutes, key })
+  }
+  return buckets
+}
+
+/** Weekly totals of a numeric session field (calories or volume), most recent last. */
+export function weeklyTotals(
+  sessions: Session[],
+  value: (s: Session) => number,
+  weeks: number,
+): { label: string; total: number }[] {
+  const done = sessions.filter((s) => s.ended_at && !s.deleted)
+  const now = new Date()
+  const out: { label: string; total: number }[] = []
+  for (let i = weeks - 1; i >= 0; i--) {
+    const start = weekStart(now); start.setDate(start.getDate() - i * 7)
+    const end = new Date(start); end.setDate(end.getDate() + 7)
+    const total = done
+      .filter((s) => { const t = new Date(s.started_at); return t >= start && t < end })
+      .reduce((sum, s) => sum + value(s), 0)
+    out.push({ label: start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), total })
+  }
+  return out
+}
+
+/** Total kg moved in a session (sum of weight × sets × reps over done entries). */
+export function sessionVolume(entries: SessionEntry[]): number {
+  return entries
+    .filter((e) => e.done && !e.deleted && e.weight_kg != null)
+    .reduce((sum, e) => sum + (e.weight_kg ?? 0) * e.sets * e.reps, 0)
+}
+
+export interface Milestone {
+  id: string
+  kind: 'sessions' | 'hours'
+  threshold: number
+  label: string
+  earned: boolean
+}
+
+const SESSION_MILESTONES = [1, 10, 20, 50, 100]
+const HOUR_MILESTONES = [2, 10, 20, 50]
+
+export function milestones(sessions: Session[]): Milestone[] {
+  const done = sessions.filter((s) => s.ended_at && !s.deleted)
+  const count = done.length
+  const hours = done.reduce((sum, s) => sum + (s.duration_s ?? 0) / 3600, 0)
+
+  const out: Milestone[] = SESSION_MILESTONES.map((n) => ({
+    id: `sessions-${n}`, kind: 'sessions', threshold: n,
+    label: n === 1 ? 'First session' : `${n} sessions`, earned: count >= n,
+  }))
+  for (const h of HOUR_MILESTONES) {
+    out.push({
+      id: `hours-${h}`, kind: 'hours', threshold: h,
+      label: `${h} hours trained`, earned: hours >= h,
+    })
+  }
+  return out
+}
+
+/** The highest newly-earned milestone id not already in `seen`, if any. */
+export function newlyEarned(sessions: Session[], seen: string[]): Milestone | null {
+  const earned = milestones(sessions).filter((m) => m.earned && !seen.includes(m.id))
+  if (!earned.length) return null
+  return earned.sort((a, b) =>
+    a.kind === b.kind ? b.threshold - a.threshold : a.kind === 'sessions' ? -1 : 1,
+  )[0]
+}
+
+// ---------------------------------------------------------------------------
+// Goals
+// ---------------------------------------------------------------------------
+
+export interface GoalProgress {
+  target: number
+  completed: number
+  weeksTotal: number
+  weeksElapsed: number
+  endDate: Date
+  ended: boolean
+  onPace: boolean
+  pct: number
+  message: string
+}
+
+export function goalProgress(
+  goal: { sessions_per_week: number; months: number; started_at: string },
+  sessions: Session[],
+): GoalProgress {
+  const start = new Date(goal.started_at)
+  const end = new Date(start)
+  end.setMonth(end.getMonth() + goal.months)
+
+  const weeksTotal = Math.max(1, Math.round((end.getTime() - start.getTime()) / (7 * 86400000)))
+  const target = weeksTotal * goal.sessions_per_week
+
+  const completed = sessions.filter(
+    (s) => s.ended_at && !s.deleted && new Date(s.started_at) >= start && new Date(s.started_at) <= end,
+  ).length
+
+  const now = new Date()
+  const ended = now > end
+  const weeksElapsed = Math.min(
+    weeksTotal,
+    Math.max(0, (now.getTime() - start.getTime()) / (7 * 86400000)),
+  )
+  const expected = weeksElapsed * goal.sessions_per_week
+  const onPace = completed >= expected
+  const pct = Math.min(100, Math.round((completed / target) * 100))
+
+  let message: string
+  if (ended) {
+    message = completed >= target
+      ? `Goal smashed — ${completed} of ${target} sessions. Time for the next one.`
+      : `Goal wrapped up at ${completed} of ${target}. Set a fresh one when you're ready.`
+  } else if (pct >= 100) {
+    message = "Target hit early — outstanding."
+  } else if (pct >= 75) {
+    message = "So close now. Keep the rhythm going."
+  } else if (onPace) {
+    message = "Right on pace. This is exactly how it's done."
+  } else {
+    const behind = Math.ceil(expected - completed)
+    message = behind <= 1
+      ? "Just behind pace — one session gets you back on track."
+      : `A few sessions behind pace. No drama, just chip away at it.`
+  }
+
+  return { target, completed, weeksTotal, weeksElapsed, endDate: end, ended, onPace, pct, message }
 }

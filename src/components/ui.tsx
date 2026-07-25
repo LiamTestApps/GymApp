@@ -128,7 +128,7 @@ export function Sheet({ open, onClose, title, children }: {
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
       <div
-        className="rise max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-line bg-bg px-5 pb-8 pt-4"
+        className="rise max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-line bg-bg px-5 pb-24 pt-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
@@ -258,6 +258,7 @@ const TABS = [
   { to: '/', label: 'Home', icon: 'M3 10.5 12 3l9 7.5V21H3z' },
   { to: '/library', label: 'Exercises', icon: 'M4 5h16M4 12h16M4 19h10' },
   { to: '/timer', label: 'Timer', icon: 'M12 8v5l3 2M21 13a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z' },
+  { to: '/progress', label: 'Progress', icon: 'M4 19V5m0 14h16M8 15l3-4 3 2 4-6' },
   { to: '/settings', label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 12h1m14 0h1M12 4v1m0 14v1' },
 ]
 

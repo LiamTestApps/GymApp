@@ -9,6 +9,7 @@ import SessionDone from './screens/SessionDone'
 import Library from './screens/Library'
 import ExerciseDetail from './screens/ExerciseDetail'
 import Timer from './screens/Timer'
+import Progress from './screens/Progress'
 import Settings from './screens/Settings'
 
 function Shell() {
@@ -30,6 +31,7 @@ function Shell() {
         <Route path="/library" element={<Library />} />
         <Route path="/exercise/:id" element={<ExerciseDetail />} />
         <Route path="/timer" element={<Timer />} />
+        <Route path="/progress" element={<Progress />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -3,9 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
-import { currentStreak, exerciseName } from '../lib/fitness'
+import { currentWeekStreak, exerciseName, goalProgress } from '../lib/fitness'
 import { Screen, Title, Card, Button, Empty } from '../components/ui'
-import type { Session, GoalKey } from '../lib/types'
+import { GoalSheet } from '../components/GoalSheet'
+import type { Session, GoalKey, Goal } from '../lib/types'
 
 const GOAL_LABEL: Record<GoalKey, string> = {
   strength: 'Strength',
@@ -42,7 +43,16 @@ export default function Home() {
 
   const open = sessions.find((s) => !s.ended_at)
   const done = sessions.filter((s) => s.ended_at)
-  const streak = currentStreak(sessions)
+  const streak = currentWeekStreak(sessions)
+
+  const goal = useLiveQuery(
+    async () => (await db.goals.where('user_id').equals(userId!).toArray())
+      .filter((g) => !g.deleted)
+      .sort((a, b) => b.started_at.localeCompare(a.started_at))[0],
+    [userId], undefined,
+  )
+  const [goalOpen, setGoalOpen] = useState(false)
+  const gp = goal ? goalProgress(goal, done) : null
 
   async function startQuick() {
     const session: Session = {
@@ -93,7 +103,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="mt-5 flex gap-2.5">
+        <button onClick={() => nav('/progress')} className="mt-5 flex w-full gap-2.5 text-left">
           <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
             <p className="tabnum font-display text-[24px] font-bold leading-none">{done.length}</p>
             <p className="mt-1 text-[12px] text-white/70">
@@ -102,7 +112,7 @@ export default function Home() {
           </div>
           <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
             <p className="tabnum font-display text-[24px] font-bold leading-none">{streak}</p>
-            <p className="mt-1 text-[12px] text-white/70">day streak</p>
+            <p className="mt-1 text-[12px] text-white/70">week{streak === 1 ? "" : "s"} streak</p>
           </div>
           <div className="flex-1 rounded-2xl bg-white/15 px-3.5 py-3 backdrop-blur">
             <p className="tabnum font-display text-[24px] font-bold leading-none">{routines.length}</p>
@@ -110,7 +120,22 @@ export default function Home() {
               routine{routines.length === 1 ? '' : 's'}
             </p>
           </div>
-        </div>
+        </button>
+
+        {gp && (
+          <button onClick={() => setGoalOpen(true)} className="mt-3 block w-full text-left">
+            <div className="flex items-baseline justify-between">
+              <p className="text-[13px] font-medium text-white/90">
+                Goal · {gp.completed}/{gp.target} sessions
+              </p>
+              <p className="text-[12px] text-white/70">{gp.pct}%</p>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/20">
+              <div className="h-full rounded-full bg-lime transition-all" style={{ width: `${gp.pct}%` }} />
+            </div>
+            <p className="mt-1.5 text-[12px] text-white/80">{gp.message}</p>
+          </button>
+        )}
       </div>
 
       <div className="px-5 pt-5">
@@ -185,6 +210,13 @@ export default function Home() {
         </>
       )}
       </div>
+
+      <button onClick={() => setGoalOpen(true)} aria-label={gp ? 'Edit goal' : 'Set a goal'}
+        className="fixed bottom-[76px] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-[28px] font-light text-onbrand shadow-lg shadow-brand/30 active:scale-95">
+        {gp ? '★' : '+'}
+      </button>
+
+      <GoalSheet open={goalOpen} onClose={() => setGoalOpen(false)} existing={goal} />
     </Screen>
   )
 }

@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../lib/db'
+import { db, getMeta, setMeta } from '../lib/db'
 import { useApp } from '../lib/app'
-import { exerciseName, formatClock, currentStreak } from '../lib/fitness'
+import { exerciseName, formatClock, currentWeekStreak, newlyEarned } from '../lib/fitness'
 import { Screen, Button } from '../components/ui'
 
 export default function SessionDone() {
@@ -25,7 +26,24 @@ export default function SessionDone() {
 
   const done = entries.filter((e) => e.done)
   const volume = done.reduce((sum, e) => sum + (e.weight_kg ?? 0) * e.sets * e.reps, 0)
-  const streak = currentStreak(sessions)
+  const streak = currentWeekStreak(sessions)
+
+  const [milestone, setMilestone] = useState<string | null>(null)
+  const doneSessions = sessions.filter((s) => s.ended_at)
+  useEffect(() => {
+    if (!userId || doneSessions.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const key = `milestones-seen.${userId}`
+      const seen: string[] = JSON.parse((await getMeta(key)) ?? '[]')
+      const earned = newlyEarned(doneSessions, seen)
+      if (earned && !cancelled) {
+        setMilestone(earned.label)
+        await setMeta(key, JSON.stringify([...seen, earned.id]))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [userId, doneSessions.length])
 
   return (
     <Screen>
@@ -42,6 +60,16 @@ export default function SessionDone() {
           })}
         </p>
       </div>
+
+      {milestone && (
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-green bg-greensoft px-4 py-3.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green text-[18px] text-white">★</div>
+          <div>
+            <p className="font-display text-[16px] font-bold text-green">Milestone reached</p>
+            <p className="text-[13px] text-muted">{milestone}. Nicely done.</p>
+          </div>
+        </div>
+      )}ç
 
       <div className="mt-6 grid grid-cols-2 gap-2.5">
         <Stat label="Duration" value={formatClock(session.duration_s ?? 0)} />

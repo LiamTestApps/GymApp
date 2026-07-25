@@ -85,6 +85,16 @@ export interface GoalPreset {
   deleted: 0 | 1
 }
 
+export interface Goal {
+  id: string
+  user_id: string
+  sessions_per_week: number
+  months: number
+  started_at: string
+  updated_at: string
+  deleted: 0 | 1
+}
+
 export type TableName =
   | 'profiles'
   | 'routines'
@@ -92,6 +102,7 @@ export type TableName =
   | 'sessions'
   | 'session_entries'
   | 'goal_presets'
+  | 'goals'
 
 export interface Outbox {
   key?: number
@@ -99,3 +110,6 @@ export interface Outbox {
   row_id: string
   queued_at: string
 }
+
+
+
