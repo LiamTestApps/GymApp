@@ -9,10 +9,11 @@ const FILTERS: (Category | 'all')[] = ['all', 'machine', 'cable', 'free', 'body'
 export default function Library() {
   const nav = useNavigate()
   const [q, setQ] = useState('')
+  const [submitted, setSubmitted] = useState('')
   const [cat, setCat] = useState<Category | 'all'>('all')
 
-  const results = useMemo(() => search(q, cat), [q, cat])
-  const showPinned = !q.trim() && cat === 'all'
+  const results = useMemo(() => search(submitted, cat), [submitted, cat])
+  const showPinned = !submitted.trim() && cat === 'all'
   const pinned = showPinned ? catalogue.filter((c) => c.pinned) : []
   const rest = showPinned ? results.filter((r) => !r.pinned) : results
 
@@ -20,8 +21,16 @@ export default function Library() {
     <Screen>
       <Title sub="Every exercise, with instructions and photos.">Exercises</Title>
 
-      <input className={inputClass} placeholder="Search machines, muscles, exercises"
-        value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+      <form onSubmit={(e) => { e.preventDefault(); setSubmitted(q) }} className="flex gap-2">
+        <input className={`${inputClass} flex-1 min-w-0`}
+          type="search" enterKeyHint="search"
+          placeholder="Search machines, muscles, exercises"
+          value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) setSubmitted('') }} autoComplete="off" />
+        <button type="submit"
+          className="shrink-0 rounded-xl bg-brand px-4 text-[14px] font-medium text-onbrand active:scale-[.98]">
+          Search
+        </button>
+      </form>
 
       <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
         {FILTERS.map((f) => (
@@ -51,7 +60,7 @@ export default function Library() {
 
       {results.length === 0 && (
         <p className="py-10 text-center text-[14px] text-muted">
-          Nothing matches “{q}”. Try a muscle name like “chest” or “quadriceps”.
+          Nothing matches “{submitted}”. Try a muscle name like “chest” or “quadriceps”.
         </p>
       )}
     </Screen>

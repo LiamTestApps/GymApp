@@ -15,25 +15,36 @@ export function ExercisePicker({
   title?: string
 }) {
   const [q, setQ] = useState('')
+  const [submitted, setSubmitted] = useState('')
   const [cat, setCat] = useState<Category | 'all'>('all')
 
-  const results = useMemo(() => search(q, cat), [q, cat])
+  const results = useMemo(() => search(submitted, cat), [submitted, cat])
   const pinned = useMemo(
-    () => (q.trim() || cat !== 'all' ? [] : catalogue.filter((c) => c.pinned)),
-    [q, cat],
+    () => (submitted.trim() || cat !== 'all' ? [] : catalogue.filter((c) => c.pinned)),
+    [submitted, cat],
   )
   const rest = pinned.length ? results.filter((r) => !r.pinned) : results
   const chosen = new Set(selected)
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
-      <input
-        className={inputClass}
-        placeholder="Search machines, muscles, exercises"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        autoComplete="off"
-      />
+      <form onSubmit={(e) => { e.preventDefault(); setSubmitted(q) }} className="flex gap-2">
+        <input
+          className={`${inputClass} flex-1 min-w-0`}
+          type="search"
+          enterKeyHint="search"
+          placeholder="Search machines, muscles, exercises"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); if (!e.target.value) setSubmitted('') }}
+          autoComplete="off"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-xl bg-brand px-4 text-[14px] font-medium text-onbrand active:scale-[.98]"
+        >
+          Search
+        </button>
+      </form>
 
       <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
         {FILTERS.map((f) => (
@@ -67,7 +78,7 @@ export function ExercisePicker({
         ))}
         {results.length === 0 && (
           <p className="py-8 text-center text-[14px] text-muted">
-            Nothing matches “{q}”. Try a muscle name like “chest” or “hamstrings”.
+            Nothing matches “{submitted}”. Try a muscle name like “chest” or “hamstrings”.
           </p>
         )}
       </div>

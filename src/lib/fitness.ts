@@ -35,15 +35,27 @@ export function usesWeight(id: string): boolean {
 
 export function search(query: string, category: Category | 'all'): CatalogueItem[] {
   const q = query.trim().toLowerCase()
-  return catalogue.filter((c) => {
+
+  const matched = catalogue.filter((c) => {
     if (category !== 'all' && c.category !== category) return false
     if (!q) return true
     return (
       c.name.toLowerCase().includes(q) ||
-      c.primaryMuscles.some((m) => m.includes(q)) ||
-      c.secondaryMuscles.some((m) => m.includes(q))
+      c.primaryMuscles.some((m) => m.toLowerCase().includes(q)) ||
+      c.secondaryMuscles.some((m) => m.toLowerCase().includes(q))
     )
   })
+
+  if (!q) return matched
+
+  // Lower rank = shown first: primary-muscle match, then name, then secondary-only.
+  const rank = (c: CatalogueItem): number => {
+    if (c.primaryMuscles.some((m) => m.toLowerCase().includes(q))) return 0
+    if (c.name.toLowerCase().includes(q)) return 1
+    return 2
+  }
+
+  return matched.sort((a, b) => rank(a) - rank(b))
 }
 
 /** Exercises hitting the same primary muscle, for the swap button. */
