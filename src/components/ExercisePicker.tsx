@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { catalogue, search, CATEGORY_LABEL } from '../lib/fitness'
 import type { Category, CatalogueItem } from '../lib/types'
-import { inputClass, Sheet } from './ui'
+import { inputClass, Sheet, MuscleTiles } from './ui'
 
 const FILTERS: (Category | 'all')[] = ['all', 'machine', 'cable', 'free', 'body', 'cardio']
 
@@ -84,16 +84,17 @@ function Row({ item, chosen, onPick }: {
       className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 text-left active:scale-[.99]"
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-medium">{item.name}</div>
-        <div className="truncate text-[12.5px] capitalize text-muted">
-          {CATEGORY_LABEL[item.category]} · {item.primaryMuscles.join(', ') || '—'}
+        <div className="flex items-center gap-2">
+          <div className="truncate text-[15px] font-medium">{item.name}</div>
+          {chosen && (
+            <span className="shrink-0 rounded-full bg-brandsoft px-2 py-0.5 text-[11px] font-medium text-brand">
+              added
+            </span>
+          )}
         </div>
+        <div className="truncate text-[12px] text-muted">{CATEGORY_LABEL[item.category]}</div>
+        <MuscleTiles primary={item.primaryMuscles} secondary={item.secondaryMuscles} max={4} />
       </div>
-      {chosen && (
-        <span className="shrink-0 rounded-full bg-brandsoft px-2 py-0.5 text-[11px] font-medium text-brand">
-          added
-        </span>
-      )}
     </button>
   )
 }
