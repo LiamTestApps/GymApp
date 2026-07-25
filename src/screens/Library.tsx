@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { catalogue, search, CATEGORY_LABEL } from '../lib/fitness'
 import type { Category } from '../lib/types'
-import { Screen, Title, inputClass } from '../components/ui'
+import { Screen, Title, inputClass, MuscleTiles } from '../components/ui'
 
 const FILTERS: (Category | 'all')[] = ['all', 'machine', 'cable', 'free', 'body', 'cardio']
 
@@ -75,9 +75,8 @@ function List({ items, onOpen }: { items: typeof catalogue; onOpen: (id: string)
           className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 text-left active:scale-[.99]">
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-medium">{c.name}</div>
-            <div className="truncate text-[12.5px] capitalize text-muted">
-              {CATEGORY_LABEL[c.category]} · {c.primaryMuscles.join(', ') || '—'}
-            </div>
+            <div className="truncate text-[12px] text-muted">{CATEGORY_LABEL[c.category]}</div>
+            <MuscleTiles primary={c.primaryMuscles} secondary={c.secondaryMuscles} />
           </div>
           <span className="shrink-0 text-[18px] text-muted" aria-hidden="true">›</span>
         </button>
