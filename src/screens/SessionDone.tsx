@@ -22,12 +22,8 @@ export default function SessionDone() {
     [userId], [],
   )
 
-  if (!session) return null
-
-  const done = entries.filter((e) => e.done)
-  const volume = done.reduce((sum, e) => sum + (e.weight_kg ?? 0) * e.sets * e.reps, 0)
-  const streak = currentWeekStreak(sessions)
-
+  // One-time milestone celebration: fires when this session crossed a threshold.
+  // NOTE: must stay above any early return so the hook order never changes.
   const [milestone, setMilestone] = useState<string | null>(null)
   const doneSessions = sessions.filter((s) => s.ended_at)
   useEffect(() => {
@@ -44,6 +40,12 @@ export default function SessionDone() {
     })()
     return () => { cancelled = true }
   }, [userId, doneSessions.length])
+
+  if (!session) return null
+
+  const done = entries.filter((e) => e.done)
+  const volume = done.reduce((sum, e) => sum + (e.weight_kg ?? 0) * e.sets * e.reps, 0)
+  const streak = currentWeekStreak(sessions)
 
   return (
     <Screen>
