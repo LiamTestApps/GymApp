@@ -177,7 +177,15 @@ function TimeSection({ sessions }: { sessions: Session[] }) {
 }
 
 function MuscleSection({ sessions, entries }: { sessions: Session[]; entries: SessionEntry[] }) {
-  const freq = useMemo(() => muscleFrequency(sessions, entries), [sessions, entries])
+  const [months, setMonths] = useState(3)
+
+  const windowed = useMemo(() => {
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - months)
+    return sessions.filter((s) => s.ended_at && new Date(s.ended_at) >= cutoff)
+  }, [sessions, months])
+
+  const freq = useMemo(() => muscleFrequency(windowed, entries), [windowed, entries])
   const ranked = [...freq.entries()].sort((a, b) => b[1] - a[1])
   const top = ranked.slice(0, 3).map(([m]) => m)
   const trained = new Set(freq.keys())
@@ -186,29 +194,61 @@ function MuscleSection({ sessions, entries }: { sessions: Session[]; entries: Se
   const primary = new Set(top)
   const secondary = new Set(neglected)
 
-  if (!ranked.length) return null
+  // Coral = "white" muscles (not green, not blue), least-trained first, capped at N.
+  const N = 8
+  const leastTrained = ALL_MUSCLES
+    .filter((m) => !primary.has(m) && !secondary.has(m))
+    .sort((a, b) => (freq.get(a) ?? 0) - (freq.get(b) ?? 0))
+    .slice(0, N)
 
   return (
-    <Section title="Muscle balance" hint="Where your training has landed.">
-      <BodyMap primary={primary} secondary={secondary} />
-      <div className="mt-3 space-y-2">
-        <div className="rounded-xl border border-line bg-surface px-4 py-3">
-          <p className="text-[13px] font-medium text-green">Most trained</p>
-          <p className="mt-1 text-[14px] capitalize">{top.join(', ') || '—'}</p>
-        </div>
-        {neglected.length > 0 && (
-          <div className="rounded-xl border border-line bg-surface px-4 py-3">
-            <p className="text-[13px] font-medium text-blue">Lightly trained lately</p>
-            <p className="mt-1 text-[14px] capitalize">{neglected.join(', ')}</p>
-            <p className="mt-1 text-[12px] text-muted">
-              Something to weave in if you fancy a more even spread — no pressure.
-            </p>
-          </div>
-        )}
+    <Section title="Muscle balance" hint={`Over the last ${months} month${months > 1 ? 's' : ''}.`}>
+      <div className="mb-3 grid grid-cols-4 gap-2">
+        {([1, 3, 6, 12] as const).map((m) => (
+          <button key={m} onClick={() => setMonths(m)}
+            className={`rounded-xl border px-3 py-2 text-[13px] font-medium ${
+              months === m ? 'border-brand bg-brandsoft text-brand' : 'border-line bg-surface text-muted'}`}>
+            {m} mo
+          </button>
+        ))}
       </div>
-      <p className="mt-2 text-[11px] text-muted">
-        On the figures, green shows your top muscles and blue the ones that could use more.
-      </p>
+
+      {ranked.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-surface px-4 py-6 text-center text-[14px] text-muted">
+          No sessions in this window. Try a longer time frame.
+        </p>
+      ) : (
+        <>
+          <BodyMap primary={primary} secondary={secondary} />
+          <div className="mt-3 space-y-2">
+            <div className="rounded-xl border border-line bg-surface px-4 py-3">
+              <p className="text-[13px] font-medium text-green">Most trained</p>
+              <p className="mt-1 text-[14px] capitalize">{top.join(', ') || '—'}</p>
+            </div>
+            {neglected.length > 0 && (
+              <div className="rounded-xl border border-line bg-surface px-4 py-3">
+                <p className="text-[13px] font-medium text-blue">Lightly trained lately</p>
+                <p className="mt-1 text-[14px] capitalize">{neglected.join(', ')}</p>
+                <p className="mt-1 text-[12px] text-muted">
+                  Something to weave in if you fancy a more even spread — no pressure.
+                </p>
+              </div>
+            )}
+            {leastTrained.length > 0 && (
+              <div className="rounded-xl border border-line bg-surface px-4 py-3">
+                <p className="text-[13px] font-medium" style={{ color: 'var(--c-coral)' }}>Least trained</p>
+                <p className="mt-1 text-[14px] capitalize">{leastTrained.join(', ')}</p>
+                <p className="mt-1 text-[12px] text-muted">
+                  Barely or never hit in this window — worth a look if you want fuller coverage.
+                </p>
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-muted">
+            On the figures, green shows your top muscles and blue the ones that could use more.
+          </p>
+        </>
+      )}
     </Section>
   )
 }
