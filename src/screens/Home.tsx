@@ -88,7 +88,7 @@ export default function Home() {
 
   return (
     <Screen pad={false}>
-      <div className="hero-gradient px-5 pb-6 pt-6 text-white">
+      <div className="hero-gradient mx-4 mt-3 rounded-3xl overflow-hidden px-5 pb-6 pt-6 text-white">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[14px] font-medium text-white/70">{greeting()}</p>

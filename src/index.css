@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --c-bg: #F1F2F4;
+  --c-bg: #F5F3EF;          /* was #F1F2F4 — warm oat */
   --c-surface: #FFFFFF;
   --c-raised: #FFFFFF;
-  --c-line: #DFE2E7;
-  --c-ink: #0C0E12;
-  --c-muted: #6C727C;
-  --c-brand: #3D2BFF;
-  --c-brand-soft: #E8E6FF;
+  --c-line: #E7E3DA;        /* was #DFE2E7 — warm hairline */
+  --c-ink: #1A1D1A;         /* was #0C0E12 */
+  --c-muted: #6E726B;       /* was #6C727C */
+  --c-brand: #0C6E5E;       /* was #3D2BFF — pine */
+  --c-brand-soft: #D9EBE6;  /* was #E8E6FF */
   --c-onbrand: #FFFFFF;
-  --c-lime: #CBFF3C;
-  --c-onlime: #1E2A00;
-  --c-green: #00BE82;
-  --c-green-soft: #DCF6EC;
-  --c-coral: #FF6A4D;
-  --c-coral-soft: #FFEAE4;
-  --c-blue: #2F80FF;
-  --c-blue-soft: #E4EEFF;
-  --c-body-base: #E4E7EB;
-  --c-danger: #FF4A2B;
+  --c-lime: #F4B740;        /* was #CBFF3C — now marigold */
+  --c-onlime: #3A2A00;      /* was #1E2A00 */
+  --c-green: #0C6E5E;       /* was #00BE82 — folds into pine */
+  --c-green-soft: #D9EBE6;  /* was #DCF6EC */
+  --c-coral: #7A6AA0;       /* was #FF6A4D — now plum */
+  --c-coral-soft: #ECE7F4;  /* was #FFEAE4 */
+  --c-blue: #3B7BD4;        /* was #2F80FF — azure */
+  --c-blue-soft: #E2ECF9;   /* was #E4EEFF */
+  --c-body-base: #E4E7EB;   /* not in new palette — left as-is */
+  --c-danger: #D8543B;      /* was #FF4A2B */
   color-scheme: light;
 }
 
@@ -98,9 +98,8 @@ input[type="number"] { -moz-appearance: textfield; }
 
 .hero-gradient {
   background:
-    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--c-green) 55%, transparent) 0%, transparent 55%),
-    radial-gradient(130% 130% at 100% 20%, color-mix(in srgb, var(--c-blue) 60%, transparent) 0%, transparent 60%),
-    linear-gradient(135deg, var(--c-brand) 0%, color-mix(in srgb, var(--c-brand) 70%, #000) 100%);
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--c-lime) 32%, transparent) 0%, transparent 55%),
+    linear-gradient(150deg, color-mix(in srgb, var(--c-brand) 92%, #fff) 0%, color-mix(in srgb, var(--c-brand) 82%, #000) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
