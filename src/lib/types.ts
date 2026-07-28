@@ -44,6 +44,10 @@ export interface RoutineExercise {
   sets: number
   reps: number
   weight_kg: number | null
+  duration_s: number | null
+  speed_kmh: number | null
+  distance_km: number | null
+  timer_started_at: string | null
   updated_at: string
   deleted: 0 | 1
 }
@@ -70,6 +74,10 @@ export interface SessionEntry {
   sets: number
   reps: number
   weight_kg: number | null
+  duration_s: number | null
+  speed_kmh: number | null
+  distance_km: number | null
+  timer_started_at: string | null
   done: 0 | 1
   updated_at: string
   deleted: 0 | 1

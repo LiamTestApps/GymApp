@@ -33,6 +33,48 @@ export function usesWeight(id: string): boolean {
   return c ? c.category !== 'cardio' && c.category !== 'body' : true
 }
 
+export type TrackingMode = 'reps' | 'cardio' | 'hold'
+
+// Isometric holds. Extend anytime with ids from catalogue.json.
+const HOLD_IDS = new Set<string>(['plank', 'side-plank'])
+
+/** How an exercise is logged: normal reps, continuous cardio, or a timed hold. */
+export function trackingMode(id: string): TrackingMode {
+  const c = byId.get(id)
+  if (!c) return 'reps'
+  if (c.category === 'cardio') return 'cardio'
+  if (HOLD_IDS.has(id)) return 'hold'
+  return 'reps'
+}
+
+/** Sensible starting values for a fresh entry of each mode. */
+export function trackingDefaults(id: string): {
+  sets: number; reps: number; weight_kg: number | null; duration_s: number | null
+} {
+  switch (trackingMode(id)) {
+    case 'cardio': return { sets: 1, reps: 1, weight_kg: null, duration_s: 0 }
+    case 'hold':   return { sets: 3, reps: 1, weight_kg: null, duration_s: 45 }
+    default:       return { sets: 3, reps: 12, weight_kg: usesWeight(id) ? 0 : null, duration_s: null }
+  }
+}
+
+/** One-line summary of a logged entry: "3 × 12 · 40 kg", "3 × 0:45", "12:30 · 9.5 km/h". */
+export function entrySummary(e: {
+  exercise_id: string; sets: number; reps: number
+  weight_kg: number | null; duration_s: number | null
+  speed_kmh: number | null; distance_km: number | null
+}): string {
+  const mode = trackingMode(e.exercise_id)
+  if (mode === 'cardio') {
+    const parts = [formatClock(e.duration_s ?? 0)]
+    if (e.speed_kmh != null) parts.push(`${e.speed_kmh} km/h`)
+    if (e.distance_km != null) parts.push(`${e.distance_km} km`)
+    return parts.join(' · ')
+  }
+  if (mode === 'hold') return `${e.sets} × ${formatClock(e.duration_s ?? 0)}`
+  return `${e.sets} × ${e.reps}` + (e.weight_kg != null ? ` · ${e.weight_kg} kg` : '')
+}
+
 export function search(query: string, category: Category | 'all'): CatalogueItem[] {
   const q = query.trim().toLowerCase()
 

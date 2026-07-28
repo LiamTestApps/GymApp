@@ -5,6 +5,7 @@ import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
   exercise, exerciseName, usesWeight, alternatives, formatClock, estimateCalories, personalBests,
+  trackingMode, trackingDefaults, entrySummary,
 } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { TopBar, Button, Field, Stepper, Sheet, Empty, MuscleTiles } from '../components/ui'
@@ -34,6 +35,7 @@ export default function SessionRun() {
   const [editing, setEditing] = useState<SessionEntry | null>(null)
   const [swapping, setSwapping] = useState<SessionEntry | null>(null)
   const [finishing, setFinishing] = useState(false)
+  const [cardioFinishing, setCardioFinishing] = useState<SessionEntry | null>(null)
 
   useEffect(() => {
     if (!session?.started_at) return
@@ -51,12 +53,27 @@ export default function SessionRun() {
   const doneCount = entries.filter((e) => e.done).length
 
   async function addExercise(exerciseId: string) {
+    const d = trackingDefaults(exerciseId)
     await put('session_entries', {
       id: uid(), session_id: session!.id, exercise_id: exerciseId,
-      position: entries.length, sets: 3, reps: 12,
-      weight_kg: usesWeight(exerciseId) ? 0 : null,
+      position: entries.length,
+      sets: d.sets, reps: d.reps, weight_kg: d.weight_kg, duration_s: d.duration_s,
+      speed_kmh: null, distance_km: null, timer_started_at: null,
       done: 0, updated_at: now(), deleted: 0,
     })
+  }
+
+  function liveSecs(e: SessionEntry): number {
+    if (!e.timer_started_at) return e.duration_s ?? 0
+    const secs = Math.floor((Date.now() - new Date(e.timer_started_at).getTime()) / 1000)
+    return trackingMode(e.exercise_id) === 'cardio' ? (e.duration_s ?? 0) + secs : secs
+  }
+
+  function liveSummary(e: SessionEntry): string {
+    if (!e.timer_started_at) return entrySummary(e)
+    return trackingMode(e.exercise_id) === 'hold'
+      ? `${e.sets} × ${formatClock(liveSecs(e))}`
+      : formatClock(liveSecs(e)) + (e.speed_kmh != null ? ` · ${e.speed_kmh} km/h` : '')
   }
 
   async function move(index: number, dir: -1 | 1) {
@@ -68,16 +85,39 @@ export default function SessionRun() {
   }
 
   async function toggle(e: SessionEntry) {
+    if (trackingMode(e.exercise_id) === 'cardio' && !e.done) {
+      const stopped = e.timer_started_at ? await stopTimer(e) : e
+      setCardioFinishing(stopped)     // opens the sheet; done is set on save
+      return
+    }
     await put('session_entries', { ...e, done: e.done ? 0 : 1 })
   }
 
+  async function stopTimer(e: SessionEntry): Promise<SessionEntry> {
+    if (!e.timer_started_at) return e
+    const secs = Math.floor((Date.now() - new Date(e.timer_started_at).getTime()) / 1000)
+    const mode = trackingMode(e.exercise_id)
+    const duration_s = mode === 'cardio' ? (e.duration_s ?? 0) + secs : secs
+    return await put('session_entries', { ...e, duration_s, timer_started_at: null })
+  }
+
+  async function startTimer(e: SessionEntry) {
+    const running = entries.find((x) => x.timer_started_at && x.id !== e.id)
+    if (running) await stopTimer(running)          // only one runs at a time
+    await put('session_entries', { ...e, timer_started_at: now() })
+  }
+
   /** Writes the entry, and pushes the working weight back onto the routine. */
-  async function saveEntry(e: SessionEntry, sets: number, reps: number, weight: number | null) {
-    await put('session_entries', { ...e, sets, reps, weight_kg: weight })
+  async function saveEntry(e: SessionEntry, patch: Partial<SessionEntry>) {
+    const updated = { ...e, ...patch }
+    await put('session_entries', updated)
     if (!session!.routine_id) return
     const linked = (await db.routine_exercises.where('routine_id').equals(session!.routine_id).toArray())
       .find((r) => !r.deleted && r.exercise_id === e.exercise_id)
-    if (linked) await put('routine_exercises', { ...linked, sets, reps, weight_kg: weight })
+    if (linked) await put('routine_exercises', {
+      ...linked, sets: updated.sets, reps: updated.reps,
+      weight_kg: updated.weight_kg, duration_s: updated.duration_s,
+    })
   }
 
   return (
@@ -127,8 +167,7 @@ export default function SessionRun() {
                         )}
                       </p>
                       <p className="mt-1 tabnum text-[15px] text-muted">
-                        {e.sets} × {e.reps}
-                        {e.weight_kg != null && ` · ${e.weight_kg} kg`}
+                        {liveSummary(e)}
                       </p>
                       <MuscleTiles
                         primary={exercise(e.exercise_id)?.primaryMuscles ?? []}
@@ -143,6 +182,16 @@ export default function SessionRun() {
                         className="h-7 w-7 rounded-md border border-line text-[13px] text-muted disabled:opacity-30">↓</button>
                     </div>
                   </div>
+                  {trackingMode(e.exercise_id) !== 'reps' && (
+                    <button
+                      onClick={() => (e.timer_started_at ? stopTimer(e) : startTimer(e))}
+                      className={`mt-3 w-full rounded-lg py-2.5 text-[13px] font-semibold ${
+                        e.timer_started_at ? 'bg-coral text-white' : 'bg-brandsoft text-brand'}`}>
+                      {e.timer_started_at
+                        ? `Stop · ${formatClock(liveSecs(e))}`
+                        : trackingMode(e.exercise_id) === 'hold' ? 'Time a set' : 'Start'}
+                    </button>
+                  )}
                     <div className="mt-3 flex items-center gap-2">
                       <button onClick={() => nav(`/exercise/${e.exercise_id}`)}
                         className="flex-[2] flex items-center justify-center gap-1.5 rounded-lg bg-brandsoft py-2.5 text-[13px] font-semibold text-brand">
@@ -178,11 +227,25 @@ export default function SessionRun() {
 
       <SwapSheet entry={swapping} onClose={() => setSwapping(null)}
         onSwap={async (e, newId) => {
+          const sameMode = trackingMode(e.exercise_id) === trackingMode(newId)
+          const d = trackingDefaults(newId)
           await put('session_entries', {
             ...e, exercise_id: newId,
             weight_kg: usesWeight(newId) ? (e.weight_kg ?? 0) : null,
+            sets: sameMode ? e.sets : d.sets,
+            reps: sameMode ? e.reps : d.reps,
+            duration_s: sameMode ? e.duration_s : d.duration_s,
+            speed_kmh: sameMode ? e.speed_kmh : null,
+            distance_km: sameMode ? e.distance_km : null,
+            timer_started_at: null,
           })
           setSwapping(null)
+        }} />
+
+      <CardioFinishSheet entry={cardioFinishing} onClose={() => setCardioFinishing(null)}
+        onSave={async (e, speed, distance) => {
+          await put('session_entries', { ...e, done: 1, speed_kmh: speed, distance_km: distance })
+          setCardioFinishing(null)
         }} />
 
       <FinishSheet
@@ -206,34 +269,82 @@ export default function SessionRun() {
 function EntrySheet({ entry, onClose, onSave, onRemove }: {
   entry: SessionEntry | null
   onClose: () => void
-  onSave: (e: SessionEntry, sets: number, reps: number, weight: number | null) => Promise<void>
+  onSave: (e: SessionEntry, patch: Partial<SessionEntry>) => Promise<void>
   onRemove: (e: SessionEntry) => void
 }) {
   const [sets, setSets] = useState(3)
   const [reps, setReps] = useState(12)
   const [weight, setWeight] = useState(0)
+  const [holdSec, setHoldSec] = useState(45)
+  const [mins, setMins] = useState(0)
+  const [secs, setSecs] = useState(0)
+  const [speed, setSpeed] = useState(0)
+  const [dist, setDist] = useState(0)
 
   useEffect(() => {
-    if (entry) { setSets(entry.sets); setReps(entry.reps); setWeight(entry.weight_kg ?? 0) }
+    if (!entry) return
+    setSets(entry.sets); setReps(entry.reps); setWeight(entry.weight_kg ?? 0)
+    setHoldSec(entry.duration_s ?? 45)
+    setMins(Math.floor((entry.duration_s ?? 0) / 60))
+    setSecs((entry.duration_s ?? 0) % 60)
+    setSpeed(entry.speed_kmh ?? 0)
+    setDist(entry.distance_km ?? 0)
   }, [entry?.id])
 
   if (!entry) return null
-  const weighted = entry.weight_kg != null
+  const mode = trackingMode(entry.exercise_id)
+
+  async function save() {
+    let patch: Partial<SessionEntry>
+    if (mode === 'cardio') {
+      patch = {
+        duration_s: mins * 60 + secs,
+        speed_kmh: speed > 0 ? speed : null,
+        distance_km: dist > 0 ? dist : null,
+      }
+    } else if (mode === 'hold') {
+      patch = { sets, duration_s: holdSec }
+    } else {
+      patch = { sets, reps, weight_kg: entry!.weight_kg != null ? weight : null }
+    }
+    await onSave(entry!, patch)
+    onClose()
+  }
 
   return (
     <Sheet open onClose={onClose} title={exerciseName(entry.exercise_id)}>
       <div className="space-y-4">
-        <Field label="Sets"><Stepper value={sets} onChange={setSets} min={1} /></Field>
-        <Field label="Reps"><Stepper value={reps} onChange={setReps} min={1} /></Field>
-        {weighted && (
-          <Field label="Weight" hint="Saved back to your routine for next time.">
-            <Stepper value={weight} onChange={setWeight} step={2.5} decimals={1} suffix="kg" />
+        {mode === 'reps' && (<>
+          <Field label="Sets"><Stepper value={sets} onChange={setSets} min={1} /></Field>
+          <Field label="Reps"><Stepper value={reps} onChange={setReps} min={1} /></Field>
+          {entry.weight_kg != null && (
+            <Field label="Weight" hint="Saved back to your routine for next time.">
+              <Stepper value={weight} onChange={setWeight} step={2.5} decimals={1} suffix="kg" />
+            </Field>
+          )}
+        </>)}
+
+        {mode === 'hold' && (<>
+          <Field label="Sets"><Stepper value={sets} onChange={setSets} min={1} /></Field>
+          <Field label="Hold" hint="Seconds per set. Saved back to your routine.">
+            <Stepper value={holdSec} onChange={setHoldSec} min={5} step={5} suffix="s" />
           </Field>
-        )}
-        <Button onClick={async () => {
-          await onSave(entry, sets, reps, weighted ? weight : null)
-          onClose()
-        }}>Save</Button>
+        </>)}
+
+        {mode === 'cardio' && (<>
+          <div className="flex gap-3">
+            <Field label="Minutes"><Stepper value={mins} onChange={setMins} min={0} /></Field>
+            <Field label="Seconds"><Stepper value={secs} onChange={setSecs} min={0} step={5} /></Field>
+          </div>
+          <Field label="Avg speed" hint="Optional — leave at 0 to skip.">
+            <Stepper value={speed} onChange={setSpeed} min={0} step={0.5} decimals={1} suffix="km/h" />
+          </Field>
+          <Field label="Distance" hint="Optional.">
+            <Stepper value={dist} onChange={setDist} min={0} step={0.1} decimals={1} suffix="km" />
+          </Field>
+        </>)}
+
+        <Button onClick={save}>Save</Button>
         <Button variant="danger" onClick={() => onRemove(entry)}>Remove from today</Button>
       </div>
     </Sheet>
@@ -263,6 +374,37 @@ function SwapSheet({ entry, onClose, onSwap }: {
         {options.length === 0 && (
           <p className="py-6 text-center text-[14px] text-muted">No close alternatives for this one.</p>
         )}
+      </div>
+    </Sheet>
+  )
+}
+
+function CardioFinishSheet({ entry, onClose, onSave }: {
+  entry: SessionEntry | null
+  onClose: () => void
+  onSave: (e: SessionEntry, speed: number | null, distance: number | null) => void
+}) {
+  const [speed, setSpeed] = useState(0)
+  const [dist, setDist] = useState(0)
+  useEffect(() => {
+    if (entry) { setSpeed(entry.speed_kmh ?? 0); setDist(entry.distance_km ?? 0) }
+  }, [entry?.id])
+  if (!entry) return null
+  return (
+    <Sheet open onClose={onClose} title="Nice work">
+      <p className="mb-4 text-[13.5px] text-muted">
+        {formatClock(entry.duration_s ?? 0)} logged. Add your average speed if you like — both optional.
+      </p>
+      <div className="space-y-4">
+        <Field label="Avg speed">
+          <Stepper value={speed} onChange={setSpeed} min={0} step={0.5} decimals={1} suffix="km/h" />
+        </Field>
+        <Field label="Distance">
+          <Stepper value={dist} onChange={setDist} min={0} step={0.1} decimals={1} suffix="km" />
+        </Field>
+        <Button onClick={() => onSave(entry, speed > 0 ? speed : null, dist > 0 ? dist : null)}>
+          Save & mark done
+        </Button>
       </div>
     </Sheet>
   )

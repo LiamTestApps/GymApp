@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getMeta, setMeta } from '../lib/db'
 import { useApp } from '../lib/app'
-import { exerciseName, formatClock, currentWeekStreak, newlyEarned } from '../lib/fitness'
+import { exerciseName, formatClock, currentWeekStreak, newlyEarned, entrySummary } from '../lib/fitness'
 import { Screen, Button } from '../components/ui'
 
 export default function SessionDone() {
@@ -71,7 +71,7 @@ export default function SessionDone() {
             <p className="text-[13px] text-muted">{milestone}. Nicely done.</p>
           </div>
         </div>
-      )}ç
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-2.5">
         <Stat label="Duration" value={formatClock(session.duration_s ?? 0)} />
@@ -102,7 +102,7 @@ export default function SessionDone() {
                 className="flex items-baseline justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3">
                 <span className="truncate text-[15px]">{exerciseName(e.exercise_id)}</span>
                 <span className="tabnum shrink-0 text-[14px] text-muted">
-                  {e.sets} × {e.reps}{e.weight_kg != null && ` · ${e.weight_kg} kg`}
+                  {entrySummary(e)}
                 </span>
               </div>
             ))}
