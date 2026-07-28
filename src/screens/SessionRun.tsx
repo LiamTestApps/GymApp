@@ -8,6 +8,7 @@ import {
   trackingMode, trackingDefaults, entrySummary,
 } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
+import { ExerciseView } from './ExerciseDetail'
 import { TopBar, Button, Field, Stepper, Sheet, Empty, MuscleTiles } from '../components/ui'
 import type { SessionEntry } from '../lib/types'
 
@@ -225,8 +226,8 @@ export default function SessionRun() {
         onSave={saveEntry}
         onRemove={async (e) => { await softDelete('session_entries', e.id); setEditing(null) }} />
 
-      <SwapSheet entry={swapping} onClose={() => setSwapping(null)}
-        onSwap={async (e, newId) => {
+      <SwapSheet entry={swapping} canPersist={!!session.routine_id} onClose={() => setSwapping(null)}
+        onSwap={async (e, newId, keep) => {
           const sameMode = trackingMode(e.exercise_id) === trackingMode(newId)
           const d = trackingDefaults(newId)
           await put('session_entries', {
@@ -239,6 +240,17 @@ export default function SessionRun() {
             distance_km: sameMode ? e.distance_km : null,
             timer_started_at: null,
           })
+          if (keep && session!.routine_id) {
+            const linked = (await db.routine_exercises.where('routine_id').equals(session!.routine_id).toArray())
+              .find((r) => !r.deleted && r.exercise_id === e.exercise_id)
+            if (linked) await put('routine_exercises', {
+              ...linked, exercise_id: newId,
+              weight_kg: usesWeight(newId) ? (linked.weight_kg ?? 0) : null,
+              sets: sameMode ? linked.sets : d.sets,
+              reps: sameMode ? linked.reps : d.reps,
+              duration_s: sameMode ? linked.duration_s : d.duration_s,
+            })
+          }
           setSwapping(null)
         }} />
 
@@ -351,31 +363,69 @@ function EntrySheet({ entry, onClose, onSave, onRemove }: {
   )
 }
 
-function SwapSheet({ entry, onClose, onSwap }: {
+function SwapSheet({ entry, canPersist, onClose, onSwap }: {
   entry: SessionEntry | null
+  canPersist: boolean
   onClose: () => void
-  onSwap: (e: SessionEntry, newId: string) => void
+  onSwap: (e: SessionEntry, newId: string, keep: boolean) => void
 }) {
+  const [keep, setKeep] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  // Fresh toggle + no stale preview each time a new swap opens.
+  useEffect(() => { setKeep(false); setPreview(null) }, [entry?.id])
+
   if (!entry) return null
   const options = alternatives(entry.exercise_id)
+
   return (
-    <Sheet open onClose={onClose} title="Swap for today">
-      <p className="mb-4 text-[13.5px] text-muted">
-        Same muscles, different equipment. Your routine keeps the original.
-      </p>
-      <div className="space-y-1.5">
-        {options.map((o) => (
-          <button key={o.id} onClick={() => onSwap(entry, o.id)}
-            className="w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-left active:scale-[.99]">
-            <div className="text-[15px] font-medium">{o.name}</div>
-            <MuscleTiles primary={o.primaryMuscles} secondary={o.secondaryMuscles} max={3} />
+    <>
+      <Sheet open onClose={onClose} title="Swap this exercise">
+        <p className="mb-4 text-[13.5px] text-muted">
+          Same muscles, different equipment.
+        </p>
+
+        {canPersist && (
+          <button onClick={() => setKeep((k) => !k)}
+            className="mb-4 flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 text-left">
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-[13px] ${
+              keep ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>✓</span>
+            <span className="min-w-0">
+              <span className="block text-[14px] font-medium">Keep this in my routine</span>
+              <span className="block text-[12px] text-muted">
+                {keep ? 'Updates the routine too, not just today.' : 'Off — this swap is for today only.'}
+              </span>
+            </span>
           </button>
-        ))}
-        {options.length === 0 && (
-          <p className="py-6 text-center text-[14px] text-muted">No close alternatives for this one.</p>
         )}
-      </div>
-    </Sheet>
+
+        <div className="space-y-1.5">
+          {options.map((o) => (
+            <div key={o.id}
+              className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3.5 py-3">
+              <button onClick={() => onSwap(entry, o.id, keep)}
+                className="min-w-0 flex-1 text-left active:scale-[.99]">
+                <div className="text-[15px] font-medium">{o.name}</div>
+                <MuscleTiles primary={o.primaryMuscles} secondary={o.secondaryMuscles} max={3} />
+              </button>
+              <button onClick={() => setPreview(o.id)} aria-label={`About ${o.name}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-[14px] font-semibold italic text-muted">
+                i
+              </button>
+            </div>
+          ))}
+          {options.length === 0 && (
+            <p className="py-6 text-center text-[14px] text-muted">No close alternatives for this one.</p>
+          )}
+        </div>
+      </Sheet>
+
+      {preview && (
+        <Sheet open onClose={() => setPreview(null)}>
+          <ExerciseView id={preview} />
+        </Sheet>
+      )}
+    </>
   )
 }
 
