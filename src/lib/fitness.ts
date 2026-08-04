@@ -115,24 +115,73 @@ export function alternatives(id: string, limit = 8): CatalogueItem[] {
     .slice(0, limit)
 }
 
-const MET: Record<'light' | 'moderate' | 'hard', number> = {
-  light: 3.5,
-  moderate: 5.0,
-  hard: 6.5,
+// --- Calorie estimate ------------------------------------------------------
+// Built per exercise from what was actually logged. Deliberately ignores the
+// session wall-clock (which can read anywhere from seconds to days depending
+// on when Finish was tapped). Rough by nature — a trend, not a measurement.
+
+const STRENGTH_MET: Record<'light' | 'moderate' | 'hard', number> = {
+  light: 3.0,
+  moderate: 4.5,
+  hard: 6.0,
+}
+const HOLD_MET = 3.5            // isometric holds (plank, side-plank)
+const CARDIO_MET_DEFAULT = 7.0  // cardio with no speed logged
+const SEC_PER_REP = 3           // rough tempo per rep
+const REST_SEC = 45             // rough rest after each set
+const LIFT_KCAL = 0.005         // small bonus per (kg × rep × set) for heavy loads
+
+/** kcal for a block of work: MET × 3.5 × bodyweight / 200 × minutes. */
+function metKcal(met: number, weightKg: number, seconds: number): number {
+  return (met * 3.5 * weightKg) / 200 * (seconds / 60)
+}
+
+function cardioMet(speedKmh: number | null): number {
+  if (speedKmh == null || speedKmh <= 0) return CARDIO_MET_DEFAULT
+  return Math.min(14, Math.max(2.5, speedKmh * 0.9))
+}
+
+type CalorieEntry = {
+  exercise_id: string
+  sets: number
+  reps: number
+  weight_kg: number | null
+  duration_s: number | null
+  speed_kmh: number | null
 }
 
 /**
- * Rough MET-based estimate. Genuinely approximate — weight training burn is
- * hard to pin down and this is only meant as a ballpark.
+ * Rough calorie estimate, summed per exercise from the logged details —
+ * cardio time/speed, hold time, or sets/reps/weight — then nudged by age.
+ * Needs a bodyweight; returns null without one.
  */
 export function estimateCalories(
-  weightKg: number | null,
-  durationSeconds: number,
+  profile: { age: number | null; weight_kg: number | null } | null,
+  entries: CalorieEntry[],
   intensity: 'light' | 'moderate' | 'hard',
 ): number | null {
-  if (!weightKg || durationSeconds <= 0) return null
-  const minutes = durationSeconds / 60
-  return Math.round((MET[intensity] * 3.5 * weightKg) / 200 * minutes)
+  const weightKg = profile?.weight_kg ?? null
+  if (!weightKg) return null
+
+  let kcal = 0
+  for (const e of entries) {
+    const mode = trackingMode(e.exercise_id)
+    if (mode === 'cardio') {
+      kcal += metKcal(cardioMet(e.speed_kmh), weightKg, e.duration_s ?? 0)
+    } else if (mode === 'hold') {
+      kcal += metKcal(HOLD_MET, weightKg, e.sets * (e.duration_s ?? 0))
+    } else {
+      const workSec = e.sets * (e.reps * SEC_PER_REP + REST_SEC)
+      kcal += metKcal(STRENGTH_MET[intensity], weightKg, workSec)
+      kcal += (e.weight_kg ?? 0) * e.reps * e.sets * LIFT_KCAL
+    }
+  }
+
+  if (kcal <= 0) return null
+
+  const age = profile?.age ?? null
+  const ageFactor = age == null ? 1 : Math.min(1.05, Math.max(0.85, 1 - 0.003 * (age - 30)))
+  return Math.round(kcal * ageFactor)
 }
 
 export function formatClock(seconds: number): string {

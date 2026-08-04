@@ -270,7 +270,7 @@ export default function SessionRun() {
             ended_at: now(),
             duration_s: duration,
             intensity,
-            calories: estimateCalories(profile?.weight_kg ?? null, duration, intensity),
+            calories: estimateCalories(profile ?? null, entries.filter((e) => e.done), intensity),
           })
           nav(`/session/${session.id}/done`, { replace: true })
         }} />
