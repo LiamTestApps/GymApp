@@ -6,6 +6,7 @@ import { useApp } from '../lib/app'
 import { currentWeekStreak, exerciseName, goalProgress, trackingDefaults } from '../lib/fitness'
 import { Screen, Title, Card, Button, Empty } from '../components/ui'
 import { GoalSheet } from '../components/GoalSheet'
+import AiRoutineSheet from '../components/AiRoutineSheet'
 import type { Session, GoalKey, Goal } from '../lib/types'
 
 const GOAL_LABEL: Record<GoalKey, string> = {
@@ -52,6 +53,7 @@ export default function Home() {
     [userId], undefined,
   )
   const [goalOpen, setGoalOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
   const gp = goal ? goalProgress(goal, done) : null
 
   async function startQuick() {
@@ -155,18 +157,29 @@ export default function Home() {
         </Card>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3">
         <h2 className="font-display text-[17px] font-medium">Your routines</h2>
-        <button onClick={() => nav('/routine/new')} className="text-[14px] font-medium text-brand">
-          New routine
+      </div>
+
+      <div className="mb-4 space-y-2">
+        <button
+          onClick={() => setAiOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-blue px-4 py-3.5 text-[15px] font-semibold text-white shadow-sm active:scale-[0.99]"
+        >
+          <span className="text-[17px] leading-none">✦</span> Create routine with AI
+        </button>
+        <button
+          onClick={() => nav('/routine/new')}
+          className="w-full text-center text-[13.5px] font-medium text-muted"
+        >
+          or create one manually
         </button>
       </div>
 
       {routines.length === 0 ? (
         <Empty
-          title="Build your first routine"
-          body="Pick your goal, choose your machines, and it's ready to run every week."
-          action={<Button onClick={() => nav('/routine/new')} full={false}>Create routine</Button>}
+          title="No routines yet"
+          body="Generate one with AI above, or build it yourself."
         />
       ) : (
         <div className="space-y-2.5">
@@ -220,6 +233,7 @@ export default function Home() {
       </button>
 
       <GoalSheet open={goalOpen} onClose={() => setGoalOpen(false)} existing={goal} />
+      <AiRoutineSheet open={aiOpen} onClose={() => setAiOpen(false)} />
     </Screen>
   )
 }

@@ -11,6 +11,7 @@ import ExerciseDetail from './screens/ExerciseDetail'
 import Timer from './screens/Timer'
 import Progress from './screens/Progress'
 import Settings from './screens/Settings'
+import AiRoutine from './screens/AiRoutine'
 
 function Shell() {
   const { userId, profile, ready } = useApp()
@@ -25,6 +26,7 @@ function Shell() {
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/routine/ai" element={<AiRoutine />} />
         <Route path="/routine/:id" element={<RoutineEdit />} />
         <Route path="/session/:id" element={<SessionRun />} />
         <Route path="/session/:id/done" element={<SessionDone />} />
