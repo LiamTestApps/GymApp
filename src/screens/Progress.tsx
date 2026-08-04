@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
-  exercise, exerciseName, weightHistory, exerciseFrequency, muscleFrequency, ALL_MUSCLES,
+  exercise, exerciseName, weightHistory, exerciseFrequency, muscleCoverage,
   timeBuckets, weeklyTotals, milestones, estimateCalories,
   type Timescale,
 } from '../lib/fitness'
@@ -176,79 +176,43 @@ function TimeSection({ sessions }: { sessions: Session[] }) {
   )
 }
 
+const MUSCLE_WINDOW_DAYS = 28  // ← the "recent" window; change to taste
+
 function MuscleSection({ sessions, entries }: { sessions: Session[]; entries: SessionEntry[] }) {
-  const [months, setMonths] = useState(3)
+  const cov = useMemo(
+    () => muscleCoverage(sessions, entries, MUSCLE_WINDOW_DAYS),
+    [sessions, entries],
+  )
 
-  const windowed = useMemo(() => {
-    const cutoff = new Date()
-    cutoff.setMonth(cutoff.getMonth() - months)
-    return sessions.filter((s) => s.ended_at && new Date(s.ended_at) >= cutoff)
-  }, [sessions, months])
-
-  const freq = useMemo(() => muscleFrequency(windowed, entries), [windowed, entries])
-  const ranked = [...freq.entries()].sort((a, b) => b[1] - a[1])
-  const top = ranked.slice(0, 3).map(([m]) => m)
-  const trained = new Set(freq.keys())
-  const neglected = ALL_MUSCLES.filter((m) => !trained.has(m) || (freq.get(m) ?? 0) <= 2).slice(0, 4)
-
-  const primary = new Set(top)
-  const secondary = new Set(neglected)
-
-  // Coral = "white" muscles (not green, not blue), least-trained first, capped at N.
-  const N = 8
-  const leastTrained = ALL_MUSCLES
-    .filter((m) => !primary.has(m) && !secondary.has(m))
-    .sort((a, b) => (freq.get(a) ?? 0) - (freq.get(b) ?? 0))
-    .slice(0, N)
+  if (cov.primary.size === 0 && cov.secondary.size === 0) return null
 
   return (
-    <Section title="Muscle balance" hint={`Over the last ${months} month${months > 1 ? 's' : ''}.`}>
-      <div className="mb-3 grid grid-cols-4 gap-2">
-        {([1, 3, 6, 12] as const).map((m) => (
-          <button key={m} onClick={() => setMonths(m)}
-            className={`rounded-xl border px-3 py-2 text-[13px] font-medium ${
-              months === m ? 'border-brand bg-brandsoft text-brand' : 'border-line bg-surface text-muted'}`}>
-            {m} mo
-          </button>
-        ))}
-      </div>
-
-      {ranked.length === 0 ? (
-        <p className="rounded-2xl border border-line bg-surface px-4 py-6 text-center text-[14px] text-muted">
-          No sessions in this window. Try a longer time frame.
-        </p>
-      ) : (
-        <>
-          <BodyMap primary={primary} secondary={secondary} />
-          <div className="mt-3 space-y-2">
-            <div className="rounded-xl border border-line bg-surface px-4 py-3">
-              <p className="text-[13px] font-medium text-green">Most trained</p>
-              <p className="mt-1 text-[14px] capitalize">{top.join(', ') || '—'}</p>
-            </div>
-            {neglected.length > 0 && (
-              <div className="rounded-xl border border-line bg-surface px-4 py-3">
-                <p className="text-[13px] font-medium text-blue">Lightly trained lately</p>
-                <p className="mt-1 text-[14px] capitalize">{neglected.join(', ')}</p>
-                <p className="mt-1 text-[12px] text-muted">
-                  Something to weave in if you fancy a more even spread — no pressure.
-                </p>
-              </div>
-            )}
-            {leastTrained.length > 0 && (
-              <div className="rounded-xl border border-line bg-surface px-4 py-3">
-                <p className="text-[13px] font-medium" style={{ color: 'var(--c-coral)' }}>Least trained</p>
-                <p className="mt-1 text-[14px] capitalize">{leastTrained.join(', ')}</p>
-                <p className="mt-1 text-[12px] text-muted">
-                  Barely or never hit in this window — worth a look if you want fuller coverage.
-                </p>
-              </div>
-            )}
+    <Section title="Muscle balance" hint="Everything you've worked in the last 4 weeks.">
+      <BodyMap primary={cov.primary} secondary={cov.secondary} />
+      <div className="mt-3 space-y-2">
+        <div className="rounded-xl border border-line bg-surface px-4 py-3">
+          <p className="text-[13px] font-medium text-green">Main targets</p>
+          <p className="mt-1 text-[14px] capitalize">{cov.primaryList.join(', ') || '—'}</p>
+        </div>
+        {cov.secondaryList.length > 0 && (
+          <div className="rounded-xl border border-line bg-surface px-4 py-3">
+            <p className="text-[13px] font-medium text-blue">Also worked</p>
+            <p className="mt-1 text-[14px] capitalize">{cov.secondaryList.join(', ')}</p>
           </div>
-          <p className="mt-2 text-[11px] text-muted">
-            On the figures, green shows your top muscles and blue the ones that could use more.
-          </p>
-        </>
-      )}
+        )}
+        {cov.rarely.length > 0 && (
+          <div className="rounded-xl border border-line bg-surface px-4 py-3">
+            <p className="text-[13px] font-medium text-muted">Rarely or never</p>
+            <p className="mt-1 text-[14px] capitalize">{cov.rarely.join(', ')}</p>
+            <p className="mt-1 text-[12px] text-muted">
+              Trained once or not at all in the last 4 weeks — worth weaving in for a more even spread.
+            </p>
+          </div>
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-muted">
+        Green is the main muscle for each exercise; blue is also involved.
+      </p>
     </Section>
   )
 }

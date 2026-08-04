@@ -322,6 +322,62 @@ export function muscleFrequency(
   return freq
 }
 
+export interface MuscleCoverage {
+  primary: Set<string>      // for the body map (green)
+  secondary: Set<string>    // for the body map (blue)
+  primaryList: string[]     // sorted, for the "Main targets" card
+  secondaryList: string[]   // sorted, primary excluded, for "Also worked"
+  rarely: string[]          // sorted, touched in 0 or 1 sessions in the window
+}
+
+/**
+ * Muscle coverage over the last `windowDays` days of finished sessions.
+ * Full coverage (every muscle worked), plus the muscles trained once or never.
+ */
+export function muscleCoverage(
+  sessions: Session[],
+  entries: SessionEntry[],
+  windowDays: number,
+): MuscleCoverage {
+  const cutoff = Date.now() - windowDays * 86400000
+  const inWindow = new Set(
+    sessions
+      .filter((s) => s.ended_at && !s.deleted && new Date(s.started_at).getTime() >= cutoff)
+      .map((s) => s.id),
+  )
+
+  const primary = new Set<string>()
+  const secondary = new Set<string>()
+  const sessionsByMuscle = new Map<string, Set<string>>()
+  const touch = (m: string, sid: string) => {
+    const set = sessionsByMuscle.get(m) ?? new Set<string>()
+    set.add(sid)
+    sessionsByMuscle.set(m, set)
+  }
+
+  for (const e of entries) {
+    if (e.deleted || !e.done || !inWindow.has(e.session_id)) continue
+    const c = exercise(e.exercise_id)
+    if (!c) continue
+    for (const m of c.primaryMuscles) { primary.add(m); touch(m, e.session_id) }
+    for (const m of c.secondaryMuscles) { secondary.add(m); touch(m, e.session_id) }
+  }
+
+  const order = (m: string) => {
+    const i = ALL_MUSCLES.indexOf(m)
+    return i === -1 ? ALL_MUSCLES.length : i
+  }
+  const sortMuscles = (list: string[]) => [...list].sort((a, b) => order(a) - order(b))
+
+  return {
+    primary,
+    secondary,
+    primaryList: sortMuscles([...primary]),
+    secondaryList: sortMuscles([...secondary].filter((m) => !primary.has(m))),
+    rarely: ALL_MUSCLES.filter((m) => (sessionsByMuscle.get(m)?.size ?? 0) <= 1),
+  }
+}
+
 export const ALL_MUSCLES = [
   'chest', 'lats', 'middle back', 'lower back', 'traps', 'shoulders',
   'biceps', 'triceps', 'forearms', 'abdominals',
