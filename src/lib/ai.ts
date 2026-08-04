@@ -35,6 +35,7 @@ export interface RoutineFormContext {
   weightKg: number | null      // pre-filled from profile
 
   // Custom path only — all optional.
+  deadline?: string
   sex?: string
   heightCm?: number | null
   experience?: string
@@ -101,6 +102,7 @@ function renderContext(c: RoutineFormContext): string {
   if (c.muscles.length) lines.push(`Wants to train: ${c.muscles.join(', ')}`)
   lines.push(`Goal preset (anchor for sets/reps): ${c.presetSets} sets of ${c.presetRepsLow}-${c.presetRepsHigh} reps`)
   if (c.description.trim()) lines.push(`In their words: ${c.description.trim()}`)
+  if (c.deadline) lines.push(`Target / deadline: ${c.deadline}`)
   if (c.age != null) lines.push(`Age: ${c.age}`)
   if (c.weightKg != null) lines.push(`Bodyweight: ${c.weightKg} kg`)
   if (c.sex) lines.push(`Sex: ${c.sex}`)
