@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import Model from 'react-body-highlighter'
 import { useApp } from '../lib/app'
 
 export function Screen({ children, pad = true }: { children: ReactNode; pad?: boolean }) {
@@ -177,82 +176,7 @@ export function MuscleTiles({ primary, secondary, max = 4 }: {
   )
 }
 
-// Our catalogue's muscle keys → the package's muscle slugs.
-const MUSCLE_SLUGS: Record<string, string[]> = {
-  abdominals: ['abs'],
-  abductors: ['abductors'],
-  adductors: ['adductor'],
-  biceps: ['biceps'],
-  calves: ['calves'],
-  chest: ['chest'],
-  forearms: ['forearm'],
-  glutes: ['gluteal'],
-  hamstrings: ['hamstring'],
-  lats: ['upper-back'],
-  'lower back': ['lower-back'],
-  'middle back': ['upper-back'],
-  quadriceps: ['quadriceps'],
-  shoulders: ['front-deltoids', 'back-deltoids'],
-  traps: ['trapezius'],
-  triceps: ['triceps'],
-}
-
-function toSlugs(muscles: Set<string>): string[] {
-  const out = new Set<string>()
-  for (const m of muscles) (MUSCLE_SLUGS[m] ?? []).forEach((s) => out.add(s))
-  return [...out]
-}
-
-function Figure({ type, primary, secondary }: {
-  type: 'anterior' | 'posterior'; primary: string[]; secondary: string[]
-}) {
-  const label = type === 'anterior' ? 'Front' : 'Back'
-  return (
-    <figure className="m-0 flex-1">
-      <div className="relative">
-        <Model
-          type={type}
-          data={secondary.length ? [{ name: 'secondary', muscles: secondary as any }] : []}
-          highlightedColors={['var(--c-blue)']}
-          bodyColor="var(--c-body-base)"
-          style={{ width: '100%' }}
-        />
-        <div className="absolute inset-0">
-          <Model
-            type={type}
-            data={primary.length ? [{ name: 'primary', muscles: primary as any }] : []}
-            highlightedColors={['var(--c-green)']}
-            bodyColor="transparent"
-            style={{ width: '100%' }}
-          />
-        </div>
-      </div>
-      <figcaption className="mt-1 text-center text-[11px] text-muted">{label}</figcaption>
-    </figure>
-  )
-}
-
-/** Front and back figure with worked muscles filled in. */
-export function BodyMap({ primary, secondary }: { primary: Set<string>; secondary: Set<string> }) {
-  const primarySlugs = toSlugs(primary)
-  const secondarySlugs = toSlugs(secondary).filter((s) => !primarySlugs.includes(s))
-  return (
-    <div>
-      <div className="flex gap-3 rounded-2xl border border-line bg-surface px-3 py-4">
-        <Figure type="anterior" primary={primarySlugs} secondary={secondarySlugs} />
-        <Figure type="posterior" primary={primarySlugs} secondary={secondarySlugs} />
-      </div>
-      <div className="mt-2 flex items-center justify-center gap-4 text-[12px] text-muted">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-green" /> Main target
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-blue" /> Also worked
-        </span>
-      </div>
-    </div>
-  )
-}
+export { BodyMap } from './BodyMap'
 
 const TABS = [
   { to: '/', label: 'Home', icon: 'M3 10.5 12 3l9 7.5V21H3z' },
