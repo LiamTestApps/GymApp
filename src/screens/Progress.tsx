@@ -5,7 +5,7 @@ import { db } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
   exercise, exerciseName, weightHistory, exerciseFrequency, muscleFrequency, ALL_MUSCLES,
-  timeBuckets, weeklyTotals, milestones,
+  timeBuckets, weeklyTotals, milestones, estimateCalories,
   type Timescale,
 } from '../lib/fitness'
 import { Screen, Title, Empty, BodyMap } from '../components/ui'
@@ -277,6 +277,7 @@ function MilestonesSection({ sessions }: { sessions: Session[] }) {
 }
 
 function OptionalCharts({ sessions, entries }: { sessions: Session[]; entries: SessionEntry[] }) {
+  const { profile } = useApp()
   const [showCalories, setShowCalories] = useState(false)
   const [showVolume, setShowVolume] = useState(false)
 
@@ -289,7 +290,10 @@ function OptionalCharts({ sessions, entries }: { sessions: Session[]; entries: S
     return map
   }, [entries])
 
-  const calories = weeklyTotals(sessions, (s) => s.calories ?? 0, 8)
+  const calories = weeklyTotals(sessions, (s) => {
+    const es = entriesBySession.get(s.id) ?? []
+    return estimateCalories(profile ?? null, es.filter((e) => e.done), s.intensity ?? 'moderate') ?? 0
+  }, 8)
   const volume = weeklyTotals(sessions, (s) => {
     const es = entriesBySession.get(s.id) ?? []
     return Math.round(es.filter((e) => e.done && e.weight_kg != null)
