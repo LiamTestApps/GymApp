@@ -5,6 +5,7 @@ import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import { exercise, exerciseName, usesWeight } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
+import AdjustSheet from '../components/AdjustSheet'
 import {
   TopBar, Button, Card, Field, inputClass, Empty, Stepper, Sheet, BodyMap, MuscleTiles,
 } from '../components/ui'
@@ -23,6 +24,7 @@ export default function RoutineEdit() {
   const [goal, setGoal] = useState<GoalKey>('muscle')
   const [routineId, setRoutineId] = useState<string | null>(isNew ? null : id!)
   const [picking, setPicking] = useState(false)
+  const [adjusting, setAdjusting] = useState(false)
   const [editing, setEditing] = useState<RoutineExercise | null>(null)
 
   useEffect(() => {
@@ -137,6 +139,15 @@ export default function RoutineEdit() {
           </div>
         )}
 
+        {exercises.length > 0 && (
+          <button
+            onClick={() => setAdjusting(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-blue px-4 py-3 text-[14px] font-semibold text-white active:scale-[0.99]"
+          >
+            <span className="text-[16px] leading-none">✦</span> Adjust with AI
+          </button>
+        )}
+
         <div>
           <div className="mb-2.5 flex items-center justify-between">
             <span className="text-[13px] font-medium text-muted">Exercises</span>
@@ -195,6 +206,16 @@ export default function RoutineEdit() {
         onClose={() => setEditing(null)}
         onRemove={async (e) => { await softDelete('routine_exercises', e.id); setEditing(null) }}
       />
+
+      {routineId && (
+        <AdjustSheet
+          open={adjusting}
+          onClose={() => setAdjusting(false)}
+          routineId={routineId}
+          goalLabel={goals.find((g) => g.id === goal)?.label ?? goal}
+          exercises={exercises}
+        />
+      )}
     </>
   )
 }
