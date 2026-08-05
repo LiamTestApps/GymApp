@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/app'
 
@@ -124,17 +125,18 @@ export function Sheet({ open, onClose, title, children }: {
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
       <div
-        className="rise max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-line bg-bg px-5 pb-24 pt-4"
+        className="rise mx-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border-t border-line bg-bg px-5 pb-24 pt-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
         {title && <h2 className="mb-4 font-display text-[20px] font-bold">{title}</h2>}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
