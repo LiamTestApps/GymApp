@@ -117,7 +117,8 @@ export default function SessionRun() {
       .find((r) => !r.deleted && r.exercise_id === e.exercise_id)
     if (linked) await put('routine_exercises', {
       ...linked, sets: updated.sets, reps: updated.reps,
-      weight_kg: updated.weight_kg, duration_s: updated.duration_s,
+      weight_kg: updated.weight_kg,
+      duration_s: trackingMode(e.exercise_id) === 'cardio' ? linked.duration_s : updated.duration_s,
     })
   }
 

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
-import { currentWeekStreak, exerciseName, goalProgress, trackingDefaults } from '../lib/fitness'
+import { currentWeekStreak, exerciseName, goalProgress, trackingDefaults, trackingMode } from '../lib/fitness'
 import { Screen, Title, Card, Button, Empty } from '../components/ui'
 import { GoalSheet } from '../components/GoalSheet'
 import AiRoutineSheet from '../components/AiRoutineSheet'
@@ -83,7 +83,7 @@ export default function Home() {
       await put('session_entries', {
         id: uid(), session_id: session.id, exercise_id: e.exercise_id, position: i,
         sets: e.sets, reps: e.reps, weight_kg: e.weight_kg,
-        duration_s: e.duration_s ?? d.duration_s,
+        duration_s: trackingMode(e.exercise_id) === 'cardio' ? 0 : (e.duration_s ?? d.duration_s),
         speed_kmh: null, distance_km: null, timer_started_at: null,
         done: 0, updated_at: now(), deleted: 0,
       })
