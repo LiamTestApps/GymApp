@@ -260,7 +260,6 @@ export function currentStreak(sessions: Session[]): number {
   return streak
 }
 
-/** Best weight ever logged per exercise, from that user's completed entries. */
 export function personalBests(entries: SessionEntry[]): Map<string, number> {
   const best = new Map<string, number>()
   for (const e of entries) {
@@ -269,6 +268,47 @@ export function personalBests(entries: SessionEntry[]): Map<string, number> {
     if (prev == null || e.weight_kg > prev) best.set(e.exercise_id, e.weight_kg)
   }
   return best
+}
+
+export interface LastPerformed {
+  entry: SessionEntry
+  date: string // the session's started_at, ISO
+}
+
+/**
+ * Each exercise's most recent completed entry, drawn from that user's finished
+ * sessions (any routine). Powers the "last time" reminder and the pre-fill on add.
+ */
+export function lastPerformedMap(
+  sessions: Session[],
+  entries: SessionEntry[],
+): Map<string, LastPerformed> {
+  const startedAt = new Map<string, string>()
+  for (const s of sessions) {
+    if (s.ended_at && !s.deleted) startedAt.set(s.id, s.started_at)
+  }
+  const out = new Map<string, LastPerformed>()
+  for (const e of entries) {
+    if (e.deleted || !e.done) continue
+    const date = startedAt.get(e.session_id) // undefined = not a finished session
+    if (!date) continue
+    const prev = out.get(e.exercise_id)
+    if (!prev || date > prev.date) out.set(e.exercise_id, { entry: e, date })
+  }
+  return out
+}
+
+/** "today", "yesterday", "5 days ago", "3 weeks ago", "2 months ago". */
+export function relativeDay(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days} days ago`
+  if (days < 14) return 'last week'
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`
+  if (days < 365) return `${Math.floor(days / 30)} months ago`
+  const y = Math.floor(days / 365)
+  return y === 1 ? 'a year ago' : `${y} years ago`
 }
 
 // ---------------------------------------------------------------------------

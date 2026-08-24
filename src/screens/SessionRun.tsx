@@ -5,7 +5,7 @@ import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
   exercise, exerciseName, usesWeight, alternatives, formatClock, estimateCalories, personalBests,
-  trackingMode, trackingDefaults, entrySummary,
+  trackingMode, trackingDefaults, entrySummary, lastPerformedMap, relativeDay, type LastPerformed,
 } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { ExerciseView } from './ExerciseDetail'
@@ -27,9 +27,25 @@ export default function SessionRun() {
   const history = useLiveQuery(async () => {
     const mine = (await db.sessions.where('user_id').equals(userId!).toArray())
       .filter((s) => s.ended_at && !s.deleted).map((s) => s.id)
-    const all = await db.session_entries.toArray()
+        const all = await db.session_entries.toArray()
     return all.filter((e) => mine.includes(e.session_id))
   }, [userId], [])
+
+  // What I did last time, per exercise, from my finished sessions.
+  const lastMap = useLiveQuery(async () => {
+    const mine = (await db.sessions.where('user_id').equals(userId!).toArray())
+      .filter((s) => s.ended_at && !s.deleted)
+    const ids = new Set(mine.map((s) => s.id))
+    const rows = (await db.session_entries.toArray()).filter((e) => ids.has(e.session_id))
+    return lastPerformedMap(mine, rows)
+  }, [userId], new Map<string, LastPerformed>())
+
+  // Exercise ids that belong to this session's routine — anything else is a one-off.
+  const routineIds = useLiveQuery(async () => {
+    if (!session?.routine_id) return new Set<string>()
+    const rows = await db.routine_exercises.where('routine_id').equals(session.routine_id).toArray()
+    return new Set(rows.filter((r) => !r.deleted).map((r) => r.exercise_id))
+  }, [session?.routine_id], new Set<string>())
 
   const [elapsed, setElapsed] = useState(0)
   const [picking, setPicking] = useState(false)
@@ -52,14 +68,21 @@ export default function SessionRun() {
 
   const bests = personalBests(history)
   const doneCount = entries.filter((e) => e.done).length
+  const isOneOff = (exerciseId: string) => !routineIds.has(exerciseId)
 
-  async function addExercise(exerciseId: string) {
+    async function addExercise(exerciseId: string) {
     const d = trackingDefaults(exerciseId)
+    const last = lastMap.get(exerciseId)?.entry // undefined the first time
     await put('session_entries', {
       id: uid(), session_id: session!.id, exercise_id: exerciseId,
       position: entries.length,
-      sets: d.sets, reps: d.reps, weight_kg: d.weight_kg, duration_s: d.duration_s,
-      speed_kmh: null, distance_km: null, timer_started_at: null,
+      sets: last?.sets ?? d.sets,
+      reps: last?.reps ?? d.reps,
+      weight_kg: last && last.weight_kg != null ? last.weight_kg : d.weight_kg,
+      duration_s: last ? last.duration_s : d.duration_s,
+      speed_kmh: last ? last.speed_kmh : null,
+      distance_km: last ? last.distance_km : null,
+      timer_started_at: null,
       done: 0, updated_at: now(), deleted: 0,
     })
   }
@@ -149,6 +172,7 @@ export default function SessionRun() {
             {entries.map((e, i) => {
               const best = bests.get(e.exercise_id)
               const isPB = e.weight_kg != null && best != null && e.weight_kg > best
+              const last = isOneOff(e.exercise_id) && !e.done ? lastMap.get(e.exercise_id) : undefined
               return (
                 <div key={e.id}
                   className={`rounded-2xl border bg-surface p-4 transition ${
@@ -168,9 +192,14 @@ export default function SessionRun() {
                           </span>
                         )}
                       </p>
-                      <p className="mt-1 tabnum text-[15px] text-muted">
+                        <p className="mt-1 tabnum text-[15px] text-muted">
                         {liveSummary(e)}
                       </p>
+                      {last && (
+                        <p className="mt-1 text-[12px] text-muted">
+                          Last time: {entrySummary(last.entry)} · {relativeDay(last.date)}
+                        </p>
+                      )}
                       <MuscleTiles
                         primary={exercise(e.exercise_id)?.primaryMuscles ?? []}
                         secondary={exercise(e.exercise_id)?.secondaryMuscles ?? []}
@@ -224,6 +253,8 @@ export default function SessionRun() {
         onPick={(item) => { addExercise(item.id); setPicking(false) }} />
 
       <EntrySheet entry={editing} onClose={() => setEditing(null)}
+        oneOff={editing ? isOneOff(editing.exercise_id) : false}
+        last={editing && isOneOff(editing.exercise_id) ? lastMap.get(editing.exercise_id) : undefined}
         onSave={saveEntry}
         onRemove={async (e) => { await softDelete('session_entries', e.id); setEditing(null) }} />
 
@@ -279,8 +310,10 @@ export default function SessionRun() {
   )
 }
 
-function EntrySheet({ entry, onClose, onSave, onRemove }: {
+function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
   entry: SessionEntry | null
+  oneOff: boolean
+  last: LastPerformed | undefined
   onClose: () => void
   onSave: (e: SessionEntry, patch: Partial<SessionEntry>) => Promise<void>
   onRemove: (e: SessionEntry) => void
@@ -304,8 +337,14 @@ function EntrySheet({ entry, onClose, onSave, onRemove }: {
     setDist(entry.distance_km ?? 0)
   }, [entry?.id])
 
-  if (!entry) return null
+    if (!entry) return null
   const mode = trackingMode(entry.exercise_id)
+  const routineHint = oneOff
+    ? 'Just for today — not saved to your routine.'
+    : 'Saved back to your routine for next time.'
+  const holdHint = oneOff
+    ? 'Seconds per set. Just for today.'
+    : 'Seconds per set. Saved back to your routine.'
 
   async function save() {
     let patch: Partial<SessionEntry>
@@ -325,13 +364,18 @@ function EntrySheet({ entry, onClose, onSave, onRemove }: {
   }
 
   return (
-    <Sheet open onClose={onClose} title={exerciseName(entry.exercise_id)}>
+        <Sheet open onClose={onClose} title={exerciseName(entry.exercise_id)}>
       <div className="space-y-4">
+        {last && (
+          <p className="text-[13px] text-muted">
+            Last time: {entrySummary(last.entry)} · {relativeDay(last.date)}
+          </p>
+        )}
         {mode === 'reps' && (<>
           <Field label="Sets"><Stepper value={sets} onChange={setSets} min={1} /></Field>
           <Field label="Reps"><Stepper value={reps} onChange={setReps} min={1} /></Field>
           {entry.weight_kg != null && (
-            <Field label="Weight" hint="Saved back to your routine for next time.">
+            <Field label="Weight" hint={routineHint}>
               <Stepper value={weight} onChange={setWeight} step={2.5} decimals={1} suffix="kg" />
             </Field>
           )}
@@ -339,7 +383,7 @@ function EntrySheet({ entry, onClose, onSave, onRemove }: {
 
         {mode === 'hold' && (<>
           <Field label="Sets"><Stepper value={sets} onChange={setSets} min={1} /></Field>
-          <Field label="Hold" hint="Seconds per set. Saved back to your routine.">
+          <Field label="Hold" hint={holdHint}>
             <Stepper value={holdSec} onChange={setHoldSec} min={5} step={5} suffix="s" />
           </Field>
         </>)}
