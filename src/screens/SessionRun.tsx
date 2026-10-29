@@ -5,7 +5,7 @@ import { db, put, uid, now, softDelete } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
   exercise, exerciseName, usesWeight, alternatives, formatClock, estimateCalories, personalBests,
-  trackingMode, trackingDefaults, entrySummary, lastPerformedMap, relativeDay, type LastPerformed,
+  trackingMode, trackingDefaults, entrySummary, lastPerformedMap, relativeDay, type LastPerformed, progressionNudges, type Nudge,
 } from '../lib/fitness'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { ExerciseView } from './ExerciseDetail'
@@ -40,12 +40,28 @@ export default function SessionRun() {
     return lastPerformedMap(mine, rows)
   }, [userId], new Map<string, LastPerformed>())
 
+  // Exercises held at the same weight long enough to suggest going up.
+  const nudges = useLiveQuery(async () => {
+    const mine = (await db.sessions.where('user_id').equals(userId!).toArray())
+      .filter((s) => s.ended_at && !s.deleted)
+    const ids = new Set(mine.map((s) => s.id))
+    const rows = (await db.session_entries.toArray()).filter((e) => ids.has(e.session_id))
+    return progressionNudges(mine, rows)
+  }, [userId], new Map<string, Nudge>())
+
   // Exercise ids that belong to this session's routine — anything else is a one-off.
   const routineIds = useLiveQuery(async () => {
     if (!session?.routine_id) return new Set<string>()
     const rows = await db.routine_exercises.where('routine_id').equals(session.routine_id).toArray()
     return new Set(rows.filter((r) => !r.deleted).map((r) => r.exercise_id))
   }, [session?.routine_id], new Set<string>())
+
+  // Today's swaps that weren't kept: entry id → the routine exercise it replaced.
+  // Kept on this phone only (meta doesn't sync) — the swap is decided where it was made.
+  const swaps = useLiveQuery(async () => {
+    const rows = await db.meta.where('key').startsWith(`swap:${id}:`).toArray()
+    return new Map(rows.map((r) => [r.key.split(':')[2], r.value]))
+  }, [id], new Map<string, string>())
 
   const [elapsed, setElapsed] = useState(0)
   const [picking, setPicking] = useState(false)
@@ -69,6 +85,12 @@ export default function SessionRun() {
   const bests = personalBests(history)
   const doneCount = entries.filter((e) => e.done).length
   const isOneOff = (exerciseId: string) => !routineIds.has(exerciseId)
+
+  /** The routine exercise this entry replaced, while that swap can still be kept. */
+  const keepableSwap = (e: SessionEntry) => {
+    const from = swaps.get(e.id)
+    return from && routineIds.has(from) && !routineIds.has(e.exercise_id) ? from : undefined
+  }
 
     async function addExercise(exerciseId: string) {
     const d = trackingDefaults(exerciseId)
@@ -173,6 +195,8 @@ export default function SessionRun() {
               const best = bests.get(e.exercise_id)
               const isPB = e.weight_kg != null && best != null && e.weight_kg > best
               const last = isOneOff(e.exercise_id) && !e.done ? lastMap.get(e.exercise_id) : undefined
+              const held = nudges.get(e.exercise_id)
+              const nudge = !e.done && held && e.weight_kg === held.weight ? held : undefined
               return (
                 <div key={e.id}
                   className={`rounded-2xl border bg-surface p-4 transition ${
@@ -195,6 +219,11 @@ export default function SessionRun() {
                         <p className="mt-1 tabnum text-[15px] text-muted">
                         {liveSummary(e)}
                       </p>
+                      {nudge && (
+                        <p className="mt-1 text-[12px] font-medium text-brand">
+                          ↑ Same weight for your last {nudge.sessions} sessions — ready to go up?
+                        </p>
+                      )}
                       {last && (
                         <p className="mt-1 text-[12px] text-muted">
                           Last time: {entrySummary(last.entry)} · {relativeDay(last.date)}
@@ -254,12 +283,16 @@ export default function SessionRun() {
 
       <EntrySheet entry={editing} onClose={() => setEditing(null)}
         oneOff={editing ? isOneOff(editing.exercise_id) : false}
+        swappedFrom={editing ? keepableSwap(editing) : undefined}
         last={editing && isOneOff(editing.exercise_id) ? lastMap.get(editing.exercise_id) : undefined}
         onSave={saveEntry}
         onRemove={async (e) => { await softDelete('session_entries', e.id); setEditing(null) }} />
 
       <SwapSheet entry={swapping} canPersist={!!session.routine_id} onClose={() => setSwapping(null)}
         onSwap={async (e, newId, keep) => {
+          // What the routine had in this slot, even after several swaps.
+          const swapKey = `swap:${session!.id}:${e.id}`
+          const origin = swaps.get(e.id) ?? (routineIds.has(e.exercise_id) ? e.exercise_id : undefined)
           const sameMode = trackingMode(e.exercise_id) === trackingMode(newId)
           const d = trackingDefaults(newId)
           await put('session_entries', {
@@ -274,7 +307,7 @@ export default function SessionRun() {
           })
           if (keep && session!.routine_id) {
             const linked = (await db.routine_exercises.where('routine_id').equals(session!.routine_id).toArray())
-              .find((r) => !r.deleted && r.exercise_id === e.exercise_id)
+              .find((r) => !r.deleted && r.exercise_id === (origin ?? e.exercise_id))
             if (linked) await put('routine_exercises', {
               ...linked, exercise_id: newId,
               weight_kg: usesWeight(newId) ? (linked.weight_kg ?? 0) : null,
@@ -282,6 +315,11 @@ export default function SessionRun() {
               reps: sameMode ? linked.reps : d.reps,
               duration_s: sameMode ? linked.duration_s : d.duration_s,
             })
+            await db.meta.delete(swapKey)
+          } else if (origin && origin !== newId) {
+            await db.meta.put({ key: swapKey, value: origin }) // so it can be kept later
+          } else {
+            await db.meta.delete(swapKey)
           }
           setSwapping(null)
         }} />
@@ -310,12 +348,13 @@ export default function SessionRun() {
   )
 }
 
-function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
+function EntrySheet({ entry, oneOff, swappedFrom, last, onClose, onSave, onRemove }: {
   entry: SessionEntry | null
   oneOff: boolean
+  swappedFrom: string | undefined
   last: LastPerformed | undefined
   onClose: () => void
-  onSave: (e: SessionEntry, patch: Partial<SessionEntry>) => Promise<void>
+  onSave: (e: SessionEntry, patch: Partial<SessionEntry>, keepSwap: boolean) => Promise<void>
   onRemove: (e: SessionEntry) => void
 }) {
   const [sets, setSets] = useState(3)
@@ -326,9 +365,11 @@ function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
   const [secs, setSecs] = useState(0)
   const [speed, setSpeed] = useState(0)
   const [dist, setDist] = useState(0)
+  const [keep, setKeep] = useState(false)
 
   useEffect(() => {
     if (!entry) return
+    setKeep(false)
     setSets(entry.sets); setReps(entry.reps); setWeight(entry.weight_kg ?? 0)
     setHoldSec(entry.duration_s ?? 45)
     setMins(Math.floor((entry.duration_s ?? 0) / 60))
@@ -339,7 +380,8 @@ function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
 
     if (!entry) return null
   const mode = trackingMode(entry.exercise_id)
-  const routineHint = oneOff
+  const todayOnly = oneOff && !(swappedFrom && keep)
+  const routineHint = todayOnly
     ? 'Just for today — not saved to your routine.'
     : 'Saved back to your routine for next time.'
   const holdHint = oneOff
@@ -359,7 +401,7 @@ function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
     } else {
       patch = { sets, reps, weight_kg: entry!.weight_kg != null ? weight : null }
     }
-    await onSave(entry!, patch)
+    await onSave(entry!, patch, keep)
     onClose()
   }
 
@@ -400,6 +442,22 @@ function EntrySheet({ entry, oneOff, last, onClose, onSave, onRemove }: {
             <Stepper value={dist} onChange={setDist} min={0} step={0.1} decimals={1} suffix="km" />
           </Field>
         </>)}
+
+        {swappedFrom && (
+          <button onClick={() => setKeep((k) => !k)}
+            className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 text-left">
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-[13px] ${
+              keep ? 'border-green bg-green text-white' : 'border-line text-transparent'}`}>✓</span>
+            <span className="min-w-0">
+              <span className="block text-[14px] font-medium">Keep this in my routine</span>
+              <span className="block text-[12px] text-muted">
+                {keep
+                  ? `Replaces ${exerciseName(swappedFrom)} from now on.`
+                  : `Off — ${exerciseName(swappedFrom)} stays in the routine.`}
+              </span>
+            </span>
+          </button>
+        )}
 
         <Button onClick={save}>Save</Button>
         <Button variant="danger" onClick={() => onRemove(entry)}>Remove from today</Button>

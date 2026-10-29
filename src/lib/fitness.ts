@@ -298,6 +298,49 @@ export function lastPerformedMap(
   return out
 }
 
+// --- Progression nudge -----------------------------------------------------
+// Counts sessions, not weeks: readiness comes from repeated exposure to a
+// weight. The slow rule stops rarely-trained exercises waiting a month.
+const NUDGE_SESSIONS = 3       // ← same weight this many sessions in a row…
+const NUDGE_SLOW_SESSIONS = 2  // ← …or this many, if they span at least
+const NUDGE_SLOW_DAYS = 14     // ← this many days
+
+export interface Nudge { weight: number; sessions: number }
+
+/**
+ * Exercises held at the same weight long enough to try going up, keyed by
+ * exercise id. Uses finished sessions only; any change of weight resets the run.
+ */
+export function progressionNudges(sessions: Session[], entries: SessionEntry[]): Map<string, Nudge> {
+  const startedAt = new Map<string, string>()
+  for (const s of sessions) if (s.ended_at && !s.deleted) startedAt.set(s.id, s.started_at)
+
+  // Heaviest completed weight per exercise, per session.
+  const perExercise = new Map<string, Map<string, number>>()
+  for (const e of entries) {
+    if (e.deleted || !e.done || e.weight_kg == null || e.weight_kg <= 0) continue
+    if (!startedAt.has(e.session_id) || !usesWeight(e.exercise_id)) continue
+    const bySession = perExercise.get(e.exercise_id) ?? new Map<string, number>()
+    bySession.set(e.session_id, Math.max(bySession.get(e.session_id) ?? 0, e.weight_kg))
+    perExercise.set(e.exercise_id, bySession)
+  }
+
+  const out = new Map<string, Nudge>()
+  for (const [exerciseId, bySession] of perExercise) {
+    const logs = [...bySession]
+      .map(([sessionId, weight]) => ({ date: startedAt.get(sessionId)!, weight }))
+      .sort((a, b) => b.date.localeCompare(a.date)) // newest first
+    const weight = logs[0].weight
+    let run = 0
+    while (run < logs.length && logs[run].weight === weight) run++
+    const spanDays = (Date.parse(logs[0].date) - Date.parse(logs[run - 1].date)) / 86400000
+    if (run >= NUDGE_SESSIONS || (run >= NUDGE_SLOW_SESSIONS && spanDays >= NUDGE_SLOW_DAYS)) {
+      out.set(exerciseId, { weight, sessions: run })
+    }
+  }
+  return out
+}
+
 /** "today", "yesterday", "5 days ago", "3 weeks ago", "2 months ago". */
 export function relativeDay(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
