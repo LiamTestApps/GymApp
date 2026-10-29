@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/app'
@@ -117,23 +117,92 @@ export function Stepper({ value, onChange, step = 1, min = 0, suffix, decimals =
 export function Sheet({ open, onClose, title, children }: {
   open: boolean; onClose: () => void; title?: string; children: ReactNode
 }) {
+  const panel = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const [drag, setDrag] = useState(0)          // px pulled down so far
+  const [dragging, setDragging] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+
+  /** Slide the sheet away, then close it for real. */
+  const dismiss = () => {
+    setLeaving(true)
+    setTimeout(() => closeRef.current(), 200)
+  }
+
   useEffect(() => {
     if (!open) return
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    setDrag(0); setDragging(false); setLeaving(false)
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && dismiss()
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [open, onClose])
+  }, [open])
+
+  // Swipe down to close. Only takes over when the sheet is scrolled to the
+  // top and the finger moves mostly downwards, so scrolling still works.
+  useEffect(() => {
+    const el = panel.current
+    if (!open || !el) return
+    let startX = 0, startY = 0, startT = 0, offset = 0
+    let mode: 'idle' | 'drag' | 'scroll' = 'idle'
+
+    const onStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY
+      startT = e.timeStamp; offset = 0; mode = 'idle'
+    }
+    const onMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - startX
+      const dy = e.touches[0].clientY - startY
+      if (mode === 'idle') {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return  // not a gesture yet
+        mode = dy > 0 && dy > Math.abs(dx) && el.scrollTop <= 0 ? 'drag' : 'scroll'
+        if (mode === 'drag') { startY = e.touches[0].clientY; startT = e.timeStamp; setDragging(true) }
+      }
+      if (mode !== 'drag') return
+      e.preventDefault()
+      offset = Math.max(0, e.touches[0].clientY - startY)
+      setDrag(offset)
+    }
+    const onEnd = (e: TouchEvent) => {
+      if (mode !== 'drag') return
+      mode = 'idle'
+      setDragging(false)
+      const speed = offset / Math.max(1, e.timeStamp - startT) // px per ms
+      if (offset > 120 || (offset > 30 && speed > 0.5)) dismiss()
+      else setDrag(0)
+    }
+
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [open])
 
   if (!open) return null
+  const shade = leaving ? 0 : 0.4 * Math.max(0, 1 - drag / 400)
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
-      <div
-        className="rise mx-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border-t border-line bg-bg px-5 pb-24 pt-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
-        {title && <h2 className="mb-4 font-display text-[20px] font-bold">{title}</h2>}
-        {children}
+    <div className="fixed inset-0 z-50 flex flex-col justify-end transition-colors duration-200"
+      style={{ backgroundColor: `rgba(0,0,0,${shade})` }} onClick={dismiss}>
+      {/* Outer layer moves with the finger; inner keeps the rise-in animation. */}
+      <div className="mx-auto w-full max-w-lg"
+        style={{
+          transform: leaving ? 'translateY(100%)' : `translateY(${drag}px)`,
+          transition: dragging ? 'none' : 'transform .2s ease-out',
+        }}>
+        <div ref={panel}
+          className="rise max-h-[85vh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border-t border-line bg-bg px-5 pb-24 pt-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
+          {title && <h2 className="mb-4 font-display text-[20px] font-bold">{title}</h2>}
+          {children}
+        </div>
       </div>
     </div>,
     document.body,
