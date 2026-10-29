@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { useApp } from '../lib/app'
 import {
-  exercise, exerciseName, weightHistory, exerciseFrequency, muscleCoverage,
+  exercise, exerciseName, usesWeight, weightHistory, exerciseFrequency, muscleCoverage,
   timeBuckets, weeklyTotals, milestones, estimateCalories,
   type Timescale,
 } from '../lib/fitness'
@@ -69,14 +69,13 @@ function WeightSection({ sessions, entries, initial }: {
   const freq = useMemo(() => exerciseFrequency(sessions, entries), [sessions, entries])
   const options = useMemo(
     () => [...freq.entries()]
-      .filter(([id]) => exercise(id))
+      .filter(([id]) => exercise(id) && usesWeight(id))
       .sort((a, b) => b[1] - a[1])
       .map(([id]) => id),
     [freq],
   )
-  const [selected, setSelected] = useState(
-    initial && options.includes(initial) ? initial : options[0] ?? '',
-  )
+  const [picked, setPicked] = useState<string | null>(initial)
+  const selected = picked && options.includes(picked) ? picked : options[0] ?? ''
 
   if (!options.length) {
     return (
@@ -99,7 +98,7 @@ function WeightSection({ sessions, entries, initial }: {
 
   return (
     <Section title="Weight progression" hint="Working weight logged per session.">
-      <select value={selected} onChange={(e) => setSelected(e.target.value)}
+      <select value={selected} onChange={(e) => setPicked(e.target.value)}
         className="mb-3 w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-[15px] font-medium text-ink outline-none focus:border-brand">
         {options.map((id) => (
           <option key={id} value={id}>{exerciseName(id)} · {freq.get(id)}×</option>
