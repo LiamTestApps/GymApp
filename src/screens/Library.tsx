@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { catalogue, search, CATEGORY_LABEL } from '../lib/fitness'
 import type { Category } from '../lib/types'
 import { Screen, Title, inputClass, MuscleTiles } from '../components/ui'
@@ -8,9 +8,22 @@ const FILTERS: (Category | 'all')[] = ['all', 'machine', 'cable', 'free', 'body'
 
 export default function Library() {
   const nav = useNavigate()
-  const [q, setQ] = useState('')
-  const [submitted, setSubmitted] = useState('')
-  const [cat, setCat] = useState<Category | 'all'>('all')
+  // The search lives in the URL (#/library?q=biceps&cat=free), so Back from an
+  // exercise returns to the same results instead of a blank list.
+  const [params, setParams] = useSearchParams()
+  const submitted = params.get('q') ?? ''
+  const rawCat = params.get('cat') as Category | null
+  const cat: Category | 'all' = rawCat && FILTERS.includes(rawCat) ? rawCat : 'all'
+  const [q, setQ] = useState(submitted)
+
+  function update(next: { q?: string; cat?: Category | 'all' }) {
+    const nq = next.q ?? submitted
+    const nc = next.cat ?? cat
+    const p: Record<string, string> = {}
+    if (nq.trim()) p.q = nq
+    if (nc !== 'all') p.cat = nc
+    setParams(p, { replace: true })
+  }
 
   const results = useMemo(() => search(submitted, cat), [submitted, cat])
   const showPinned = !submitted.trim() && cat === 'all'
@@ -21,11 +34,11 @@ export default function Library() {
     <Screen>
       <Title sub="Every exercise, with instructions and photos.">Exercises</Title>
 
-      <form onSubmit={(e) => { e.preventDefault(); setSubmitted(q) }} className="flex gap-2">
+      <form onSubmit={(e) => { e.preventDefault(); update({ q }) }} className="flex gap-2">
         <input className={`${inputClass} flex-1 min-w-0`}
           type="search" enterKeyHint="search"
           placeholder="Search machines, muscles, exercises"
-          value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) setSubmitted('') }} autoComplete="off" />
+          value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) update({ q: '' }) }} autoComplete="off" />
         <button type="submit"
           className="shrink-0 rounded-xl bg-brand px-4 text-[14px] font-medium text-onbrand active:scale-[.98]">
           Search
@@ -34,7 +47,7 @@ export default function Library() {
 
       <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
         {FILTERS.map((f) => (
-          <button key={f} onClick={() => setCat(f)}
+          <button key={f} onClick={() => update({ cat: f })}
             className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${
               cat === f ? 'border-brand bg-brand text-onbrand' : 'border-line bg-surface text-muted'}`}>
             {f === 'all' ? 'All' : CATEGORY_LABEL[f]}

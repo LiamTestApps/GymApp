@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { catalogue, search, CATEGORY_LABEL } from '../lib/fitness'
 import type { Category, CatalogueItem } from '../lib/types'
 import { inputClass, Sheet, MuscleTiles } from './ui'
 
 const FILTERS: (Category | 'all')[] = ['all', 'machine', 'cable', 'free', 'body', 'cardio']
+
+// The last search, kept while the app is open so the picker reopens where you
+// left it — even after leaving the screen (e.g. "How to") and coming back.
+let lastSearch: { q: string; cat: Category | 'all' } = { q: '', cat: 'all' }
 
 export function ExercisePicker({
   open, onClose, onPick, selected = [], title = 'Add exercise',
@@ -14,9 +18,10 @@ export function ExercisePicker({
   selected?: string[]
   title?: string
 }) {
-  const [q, setQ] = useState('')
-  const [submitted, setSubmitted] = useState('')
-  const [cat, setCat] = useState<Category | 'all'>('all')
+  const [q, setQ] = useState(lastSearch.q)
+  const [submitted, setSubmitted] = useState(lastSearch.q)
+  const [cat, setCat] = useState<Category | 'all'>(lastSearch.cat)
+  useEffect(() => { lastSearch = { q: submitted, cat } }, [submitted, cat])
 
   const results = useMemo(() => search(submitted, cat), [submitted, cat])
   const pinned = useMemo(
