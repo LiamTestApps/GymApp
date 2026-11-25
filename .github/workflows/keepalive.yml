@@ -1,26 +1,24 @@
 name: Supabase keep-alive
 
-# Supabase pauses free-tier projects after 7 days with no activity.
-# This pokes the database every 3 days so that never happens.
+# Free-tier projects pause after a week of low DB activity.
+# Writes a timestamp every 6 hours so there's always activity.
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '17 */6 * * *'   # off the hour: GitHub delays/drops :00 runs under load
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Query the profiles table
+      - name: Write keep-alive timestamp
+        env:
+          URL: ${{ secrets.VITE_SUPABASE_URL }}
+          KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          code=$(curl -s -o /tmp/out.txt -w "%{http_code}" \
-            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1" \
-            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}")
-          echo "HTTP $code"
-          cat /tmp/out.txt
-          if [ "$code" != "200" ]; then
-            echo "Keep-alive failed — check the repository secrets."
-            exit 1
-          fi
+          code=$(curl -s -m 30 -o /tmp/out.txt -w "%{http_code}" -X POST \
+            "${URL%/}/rest/v1/rpc/keep_alive_ping" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}') || true
+          echo "HTTP $code"; cat /tmp/out.txt; echo
+          [ "$code" = "200" ] || { echo "Keep-alive failed (000 = host unreachable, likely paused)"; exit 1; }
